@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-# Federated MNIST Trainer Using Python Subprocess
-# Based on Federated Learning https://arxiv.org/pdf/1602.05629   
+# Federated MNIST Trainer Using Python Subprocess with IPC
+# Based on Federated Learning https://arxiv.org/pdf/1602.05629
+# Workflow: 1 machine, n processes, n workers   
 
 import subprocess
 import pickle
@@ -14,9 +15,9 @@ def FedAVG(models, data_sizes):
     combined_biases = []
     combined_weights = []
     for layer in range(len(models[0].biases)): # should be a constant in config, but for now we will assume all models have the same number of layers
-        wb = sum((model.biases[layer] * data_sizes[i] for i, model in enumerate(models)) / total_size)
+        wb = sum(model.biases[layer] * data_sizes[i] for i, model in enumerate(models)) / total_size
         combined_biases.append(wb)
-        ww = sum((model.weights[layer] * data_sizes[i] for i, model in enumerate(models)) / total_size)
+        ww = sum(model.weights[layer] * data_sizes[i] for i, model in enumerate(models)) / total_size
         combined_weights.append(ww)
     return combined_biases, combined_weights
 
@@ -24,7 +25,7 @@ def spawn_workers(partition_files, test_file, init_file):
     processes = []
     out_files = []
     for i, pfile in enumerate(partition_files):
-        out_fname = f"trained_model_{i}.pkl"
+        out_fname = f"temp/trained_model_{i}.pkl"
         out_files.append(out_fname)
         cmd = ["python3", "-u", "worker.py", "--partition", pfile, "--test", test_file, "--output", out_fname]
         if init_file:
@@ -75,7 +76,7 @@ def main():
     test_file = create_test_file(test_imgs, test_lbls, config.TEST_SAMPLE_SIZE)
 
     # Initialize W0 
-    final_model = None
+    global_model = None
 
     # For each round t = 1,2,... do 
     for epoch in range(config.N_EPOCHS):
@@ -83,29 +84,28 @@ def main():
 
         # (Load Previous Model if available)
         init_file = None
-        if final_model:
-            init_file = "initial_model.pkl"
+        if global_model:
+            init_file = "temp/initial_model.pkl"
             with open(init_file, "wb") as f:
-                pickle.dump(final_model, f)
+                pickle.dump(global_model, f)
 
         # (Spawn Workers)
         # For each client k in St in parallel do
         # Wkt+1 <-- ClientUpdate(k, Wt)         
         procs, out_files = spawn_workers(partition_files, test_file, init_file)
         wait_for_workers(procs)
-        print(out_files)
         models = load_worker_outputs(out_files)
         
         # (Aggregate Models)
         # Wt+1 <-- FedAVG(St, wkt+1)
         biases, weights = FedAVG(models, data_sizes)
-        final_model = mnist.Network(config.NETWORK_ARCHITECTURE)
-        final_model.biases = biases
-        final_model.weights = weights
+        global_model = mnist.Network(config.NETWORK_ARCHITECTURE)
+        global_model.biases = biases
+        global_model.weights = weights
 
         # (Evaluate Final Model)
         full_test = list(zip(test_imgs, test_lbls))
-        print(f"Epoch {epoch} Final Model Evaluation: {final_model.evaluate(full_test)} / {len(full_test)}")
+        print(f"Epoch {epoch} Final Model Evaluation: {global_model.evaluate(full_test)} / {len(full_test)}")
         
         # (Cleanup temp files)
         cleanup(out_files)
