@@ -1,6 +1,6 @@
 import subprocess, pickle, os
 import config
-from comm import BaseFederatedCommunicator
+from src.comms.comm import BaseFederatedCommunicator
 
 class IPCFederatedCommunicator(BaseFederatedCommunicator):
     def __init__(self, parition_files, test_file):
@@ -11,9 +11,9 @@ class IPCFederatedCommunicator(BaseFederatedCommunicator):
         processes = []
         out_files = []
         for i, pfile in enumerate(self.partition_files):
-            out_fname = f"temp/trained_model_{i}.pkl"
+            out_fname = f"tmp/trained_model_{i}.pkl"
             out_files.append(out_fname)
-            cmd = ["python3", "-u", "worker.py", "--partition", pfile, "--test", self.test_file, "--output", out_fname]
+            cmd = ["python3", "-u", "src/worker.py", "--partition", pfile, "--test", self.test_file, "--output", out_fname]
             if init_file:
                 cmd += ["--initial", init_file]
             proc = subprocess.Popen(cmd, stdout=None if config.DEBUG else subprocess.PIPE,

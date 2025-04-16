@@ -1,7 +1,7 @@
 import pickle
 import config
-from data_loader import load_dataset, create_partition_files, create_test_file
-from ipc_comm import IPCFederatedCommunicator
+from src.data_loader import load_dataset, create_partition_files, create_test_file
+from src.comms.ipc_comm import IPCFederatedCommunicator
 
 """ 
 Federated Average Algorithm https://arxiv.org/pdf/1602.05629 Algorithm 1
@@ -16,20 +16,21 @@ def main():
     (train_imgs, train_lbls), (test_imgs, test_lbls) = load_dataset()
     partition_files, data_sizes = create_partition_files(train_imgs, train_lbls, config.N_PARTITIONS)
     test_file = create_test_file(test_imgs, test_lbls, config.TEST_SAMPLE_SIZE)
+    
     communicator = IPCFederatedCommunicator(partition_files, test_file)
     global_model = None
 
     for epoch in range(config.N_EPOCHS):
-        print(f"\n=== Training Epoch {epoch} ===")
 
         init_file = None
         if global_model:
-            init_file = "temp/initial_model.pkl"
+            init_file = "tmp/initial_model.pkl"
             with open(init_file, "wb") as f:
                 pickle.dump(global_model, f)
-
+        
         processes, out_files = communicator.distribute_data(init_file)
         communicator.wait_for_completion(processes)
+
         models = communicator.collect_models(out_files)
         global_model = communicator.update_model(global_model, models, data_sizes)
 

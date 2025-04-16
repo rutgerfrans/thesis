@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import pickle
 import argparse
-import mnist
+import src.mnist as mnist
 import config
 
 def load_partition(file_path):

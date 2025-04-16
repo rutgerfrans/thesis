@@ -41,7 +41,7 @@ def create_partition_files(train_imgs, train_lbls, n):
     files = []
     sizes = []
     for i, part in enumerate(partitions):
-        fname = f"temp/partition_{i}.pkl"
+        fname = f"tmp/partition_{i}.pkl"
         with open(fname, "wb") as f:
             pickle.dump(part, f)
         files.append(fname)
@@ -50,7 +50,7 @@ def create_partition_files(train_imgs, train_lbls, n):
 
 def create_test_file(test_imgs, test_lbls, count):
     test_data = list(zip(test_imgs, test_lbls))[:count]
-    fname = "temp/test_data.pkl"
+    fname = "tmp/test_data.pkl"
     with open(fname, "wb") as f:
         pickle.dump(test_data, f)
     return fname

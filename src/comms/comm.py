@@ -1,11 +1,11 @@
-import mnist
-import config
+import src.mnist as mnist
+import config.config as config
 
 class BaseFederatedCommunicator:
-    def broadcast_model(self, model, test_data):
-        raise NotImplementedError
-
     def distribute_data(self, partitions):
+        raise NotImplementedError
+    
+    def train_model(self):
         raise NotImplementedError
 
     def collect_models(self):
