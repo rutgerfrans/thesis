@@ -19,9 +19,7 @@ class Network(object):
             a = sigmoid(np.dot(w, a)+b)
         return a
 
-    def SGD(self, training_data, epochs, mini_batch_size, eta,
-            test_data=None):
-        if test_data is not None: n_test = len(test_data)
+    def SGD(self, training_data, epochs, mini_batch_size, eta):
         n = len(training_data)
         for j in range(epochs):
             mini_batches = [
@@ -29,12 +27,6 @@ class Network(object):
                 for k in range(0, n, mini_batch_size)]
             for mini_batch in mini_batches:
                 self.update_mini_batch(mini_batch, eta)
-        # Print only the result of the last epoch
-        #if test_data is not None:
-        #    print("Final Epoch {0}: {1} / {2}".format(
-        #        epochs - 1, self.evaluate(test_data), n_test))
-        #else:
-        #    print("Final Epoch {0} complete".format(epochs - 1))
 
     def update_mini_batch(self, mini_batch, eta):
         nabla_b = [np.zeros(b.shape) for b in self.biases]

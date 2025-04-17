@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import pickle
-import numpy as np
+import numpy as np #type: ignore
 
 def load_images(filename):
     images = []
@@ -35,22 +35,3 @@ def partition_training_data(images, labels, n):
     data = list(zip(images, map(lambda v: np.eye(10)[v].reshape((10, 1)), labels)))
     chunk_size = len(data) // n
     return [data[i * chunk_size:(i + 1) * chunk_size] for i in range(n)]
-
-def create_partition_files(train_imgs, train_lbls, n):
-    partitions = partition_training_data(train_imgs, train_lbls, n)
-    files = []
-    sizes = []
-    for i, part in enumerate(partitions):
-        fname = f"tmp/partition_{i}.pkl"
-        with open(fname, "wb") as f:
-            pickle.dump(part, f)
-        files.append(fname)
-        sizes.append(len(part))
-    return files, sizes
-
-def create_test_file(test_imgs, test_lbls, count):
-    test_data = list(zip(test_imgs, test_lbls))[:count]
-    fname = "tmp/test_data.pkl"
-    with open(fname, "wb") as f:
-        pickle.dump(test_data, f)
-    return fname

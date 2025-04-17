@@ -1,46 +1,20 @@
-#!/usr/bin/env python3
-import pickle
 import argparse
-import src.mnist as mnist
-import config
-
-def load_partition(file_path):
-    with open(file_path, "rb") as f:
-        return pickle.load(f)
-
-def load_test_data(file_path):
-    with open(file_path, "rb") as f:
-        return pickle.load(f)
-
-def load_initial_model(file_path):
-    with open(file_path, "rb") as f:
-        return pickle.load(f)
-
-def train_partition(partition, test_data, initial_model=None):
-    if initial_model is not None:
-        net = mnist.Network(initial_model.sizes)
-        net.biases = [b.copy() for b in initial_model.biases]
-        net.weights = [w.copy() for w in initial_model.weights]
-    else:
-        net = mnist.Network(config.NETWORK_ARCHITECTURE)
-    print("Initial evaluation on partition:", net.evaluate(test_data), "/", len(test_data), flush=True)
-    net.SGD(partition, epochs=config.SGD_EPOCHS, mini_batch_size=config.MINI_BATCH_SIZE, eta=config.ETA, test_data=test_data)
-    print("Post-training evaluation:", net.evaluate(test_data), "/", len(test_data), flush=True)
-    return net
+import src.utils as utils
+from src.comms.comm import BaseFederatedCommunicator
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--partition", required=True)
-    parser.add_argument("--test", required=True)
-    parser.add_argument("--output", required=True)
-    parser.add_argument("--initial", default=None)
+    parser.add_argument("--local_model_file", required=True)
+    parser.add_argument("--global_model", default=None)
     args = parser.parse_args()
-    partition = load_partition(args.partition)
-    test_data = load_test_data(args.test)
-    initial_model = load_initial_model(args.initial) if args.initial else None
-    trained_model = train_partition(partition, test_data, initial_model)
-    with open(args.output, "wb") as f:
-        pickle.dump(trained_model, f)
+    
+    communicator = BaseFederatedCommunicator()
+    partition = utils.load_pickle(args.partition)
+    global_model = utils.load_pickle(args.global_model) if args.global_model else None
+    global_model = communicator.train_model(global_model, partition)
+    
+    utils.save_pickle(global_model, args.local_model_file)
 
 if __name__ == "__main__":
     main()

@@ -1,26 +1,38 @@
 import subprocess, pickle, os
 import config
+import src.utils as utils
 from src.comms.comm import BaseFederatedCommunicator
 
 class IPCFederatedCommunicator(BaseFederatedCommunicator):
-    def __init__(self, parition_files, test_file):
-        self.partition_files = parition_files
-        self.test_file = test_file
+    def __init__(self):
+        self.global_model_file = "tmp/global_model.pkl"
+        self.partition_file = "tmp/partition_"
+        self.local_model_file = "tmp/local_model_"
 
-    def distribute_data(self, init_file=None):
+    def create_partition_files(self, partitions):
+        partition_files = []
+        for i, part in enumerate(partitions):
+            utils.save_pickle(part, self.partition_file+f"{i}.pkl")
+            partition_files.append(self.partition_file+f"{i}.pkl")
+        return partition_files
+   
+    def distribute_data(self, global_model, partition_files):
         processes = []
-        out_files = []
-        for i, pfile in enumerate(self.partition_files):
-            out_fname = f"tmp/trained_model_{i}.pkl"
-            out_files.append(out_fname)
-            cmd = ["python3", "-u", "src/worker.py", "--partition", pfile, "--test", self.test_file, "--output", out_fname]
-            if init_file:
-                cmd += ["--initial", init_file]
+        local_model_files = []
+
+        for i, pfile in enumerate(partition_files):
+            local_model_files.append(self.local_model_file+f"{i}.pkl")
+
+            cmd = ["python3", "-m", "src.worker", "--partition", pfile, "--local_model_file", self.local_model_file+f"{i}.pkl"]
+            if global_model: 
+                utils.save_pickle(global_model, self.global_model_file)
+                cmd += ["--global_model", self.global_model_file]
+
             proc = subprocess.Popen(cmd, stdout=None if config.DEBUG else subprocess.PIPE,
                                          stderr=None if config.DEBUG else subprocess.PIPE,
                                          text=True)
-            processes.append((proc, i, out_fname))
-        return processes, out_files
+            processes.append((proc, i, self.local_model_file+f"{i}.pkl"))
+        return processes, local_model_files
 
     def wait_for_completion(self, processes):
         for proc, i, _ in processes:
@@ -30,12 +42,10 @@ class IPCFederatedCommunicator(BaseFederatedCommunicator):
                 print("STDOUT:", stdout.decode("utf-8"))
                 print("STDERR:", stderr.decode("utf-8"))
 
-    def collect_models(self, out_files):
+    def collect_models(self, local_model_files):
         models = []
-        for fname in out_files:
-            if os.path.exists(fname):
-                with open(fname, "rb") as f:
-                    models.append(pickle.load(f))
+        for fname in local_model_files:
+            models.append(utils.load_pickle(fname))
         return models
 
     def cleanup(self, files):
