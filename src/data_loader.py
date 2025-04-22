@@ -29,7 +29,7 @@ def load_dataset():
     train_lbls = load_labels('dataset/train-labels.idx1-ubyte')
     test_imgs = load_images('dataset/t10k-images.idx3-ubyte')
     test_lbls = load_labels('dataset/t10k-labels.idx1-ubyte')
-    return (train_imgs, train_lbls), (test_imgs, test_lbls)
+    return (train_imgs, train_lbls), list(zip(test_imgs, test_lbls))
 
 def partition_training_data(images, labels, n):
     data = list(zip(images, map(lambda v: np.eye(10)[v].reshape((10, 1)), labels)))

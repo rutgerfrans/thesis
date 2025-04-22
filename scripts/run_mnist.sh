@@ -18,5 +18,5 @@ echo "==============================="
 if [ "$COMM" == "ipc" ]; then
     python3 -m src.drivers.driver
 elif [ "$COMM" == "mpi" ]; then
-    mpiexec -n $N_PARTITIONS python3 -m src.drivers.driver
+    mpiexec -n $(( N_PARTITIONS + 1 )) python3 -m src.drivers.driver
 fi

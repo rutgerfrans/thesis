@@ -5,23 +5,21 @@ class BaseFederatedCommunicator:
     def distribute_data(self):
         raise NotImplementedError
     
-    def train_model(self, global_model, local_data):
-        if global_model is not None:
-            net = mnist.Network(global_model.sizes)
-            net.biases = [b.copy() for b in global_model.biases]
-            net.weights = [w.copy() for w in global_model.weights]
-        else:
-            net = mnist.Network(config.NETWORK_ARCHITECTURE)
-        net.SGD(local_data, epochs=config.SGD_EPOCHS, mini_batch_size=config.MINI_BATCH_SIZE,
-                eta=config.ETA)
-        return net
-
     def collect_models(self):
         raise NotImplementedError
     
-    def update_model(self, model, models, data_sizes):
-        model = mnist.Network(config.NETWORK_ARCHITECTURE)
-        
+    def init_global_model(self):
+        net = mnist.Network(config.NETWORK_ARCHITECTURE)
+        return net
+    
+    def train_model(self, global_model, local_data):
+        net = mnist.Network(global_model.sizes)
+        net.biases = [b.copy() for b in global_model.biases]
+        net.weights = [w.copy() for w in global_model.weights]
+        net.SGD(local_data, epochs=config.SGD_EPOCHS, mini_batch_size=config.MINI_BATCH_SIZE, eta=config.ETA)
+        return net
+    
+    def update_model(self, models, data_sizes, test_set, epoch):
         total_size = sum(data_sizes)
         combined_biases = []
         combined_weights = []
@@ -30,9 +28,7 @@ class BaseFederatedCommunicator:
             ww = sum(model.weights[layer] * data_sizes[i] for i, model in enumerate(models)) / total_size
             combined_biases.append(wb)
             combined_weights.append(ww)
-
+        model = mnist.Network(models[0].sizes)
         model.biases, model.weights = combined_biases, combined_weights
+        print(f"Epoch {epoch}/{config.N_EPOCHS - 1} Final Model Evaluation: {model.evaluate(test_set)} / {len(test_set)}")
         return model
-    
-    def evaluate_model(self, model, test_data, epoch):
-        return f"Epoch {epoch}/{config.N_EPOCHS - 1} Final Model Evaluation: {model.evaluate(test_data)} / {len(test_data)}"
