@@ -6,4 +6,4 @@ N_EPOCHS = 2
 N_PARTITIONS = 3
 TEST_SAMPLE_SIZE = 1000
 DEBUG = True
-COMM = "mpi" # "mpi" or "ipc"
+COMM = "ipc" # "mpi" or "ipc"

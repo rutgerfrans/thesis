@@ -2,7 +2,6 @@
 # Based on
 # https://raw.githubusercontent.com/mnielsen/neural-networks-and-deep-learning/master/src/network.py
 
-import random
 import numpy as np #type: ignore 
 
 class Network(object):
@@ -45,8 +44,8 @@ class Network(object):
         nabla_w = [np.zeros(w.shape) for w in self.weights]
         # feedforward
         activation = x
-        activations = [x] # list to store all the activations, layer by layer
-        zs = [] # list to store all the z vectors, layer by layer
+        activations = [x]
+        zs = []
         for b, w in zip(self.biases, self.weights):
             z = np.dot(w, activation)+b
             zs.append(z)
@@ -73,7 +72,6 @@ class Network(object):
     def cost_derivative(self, output_activations, y):
         return (output_activations-y)
 
-#### Miscellaneous functions
 def sigmoid(z):
     return 1.0/(1.0+np.exp(-z))
 

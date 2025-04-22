@@ -19,7 +19,8 @@ class BaseFederatedCommunicator:
         net.SGD(local_data, epochs=config.SGD_EPOCHS, mini_batch_size=config.MINI_BATCH_SIZE, eta=config.ETA)
         return net
     
-    def update_model(self, models, data_sizes, test_set, epoch):
+    def update_model(self, models, partitions, test_set, epoch):
+        data_sizes = [len(p) for p in partitions]
         total_size = sum(data_sizes)
         combined_biases = []
         combined_weights = []

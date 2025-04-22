@@ -1,7 +1,5 @@
 from src.comms.comm import BaseFederatedCommunicator
 from mpi4py import MPI #type: ignore
-import src.mnist as mnist
-import config
 
 class MPIFederatedCommunicator(BaseFederatedCommunicator):
     def __init__(self):
@@ -20,18 +18,7 @@ class MPIFederatedCommunicator(BaseFederatedCommunicator):
     def create_data_stack(self, global_model, partitions):
         return [[None, None]] + [(part, global_model) for part in partitions]
     
-    def update_model(self, models, data_sizes, test_set, epoch):
+    def update_model(self, models, partitions, test_set, epoch):
         if self.mpi_comm.Get_rank() == 0:
             if None in models: models.remove(None)
-            total_size = sum(data_sizes)
-            combined_biases = []
-            combined_weights = []
-            for layer in range(len(models[0].biases)):
-                wb = sum(model.biases[layer] * data_sizes[i] for i, model in enumerate(models)) / total_size
-                ww = sum(model.weights[layer] * data_sizes[i] for i, model in enumerate(models)) / total_size
-                combined_biases.append(wb)
-                combined_weights.append(ww)
-            model = mnist.Network(models[0].sizes)
-            model.biases, model.weights = combined_biases, combined_weights
-            print(f"Epoch {epoch}/{config.N_EPOCHS - 1} Final Model Evaluation: {model.evaluate(test_set)} / {len(test_set)}")
-            return model
+            return super().update_model(models, partitions, test_set, epoch)
