@@ -21,6 +21,7 @@ class BaseFederatedCommunicator:
     
     def update_model(self, models, partitions, test_set, epoch):
         data_sizes = [len(p) for p in partitions]
+        print(data_sizes)
         total_size = sum(data_sizes)
         combined_biases = []
         combined_weights = []

@@ -7,12 +7,12 @@ class MPIFederatedCommunicator(BaseFederatedCommunicator):
         self.data = None
         self.local_model = None
 
-    def distribute_data(self, data):
+    def distribute_data(self, data, epoch):
         self.data = self.mpi_comm.scatter(data, root=0)
         if self.data[0] is not None:
             self.local_model = self.train_model(self.data[1], self.data[0])
 
-    def collect_models(self):
+    def collect_models(self): # maybe create a try except here
         return self.mpi_comm.gather(self.local_model, root=0)
     
     def create_data_stack(self, global_model, partitions):

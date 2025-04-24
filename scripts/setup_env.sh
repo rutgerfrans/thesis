@@ -1,4 +1,3 @@
-conda create -n distmnist python
-conda activate distmnist
-conda install -c conda-forge openmpi mpi4py
-pip install -r requirements.txt
+conda create -n dist_mnist -c conda-forge python=3.11 openmpi mpi4py
+conda activate dist_mnist
+pip install numpy
