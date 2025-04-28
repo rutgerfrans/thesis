@@ -1,0 +1,29 @@
+<require-service <daemon <worker 0>>>
+<require-service <daemon <worker 1>>>
+<require-service <daemon <worker 2>>>
+<require-service <daemon <worker 3>>>
+<require-service <daemon <worker 4>>>
+<require-service <daemon <worker 5>>>
+<require-service <daemon <worker 6>>>
+
+? <run-service <daemon <worker ?n>>> [
+  <daemon <worker $n> {
+    argv: "exec python3 worker.py"
+    protocol: application/syndicate
+  }>
+  ? <service-object <daemon <worker $n>> ?w> [
+    $log ! <log "-" { worker-ready: $w worker-number: $n }>
+    <worker-ready $w>
+  ]
+]
+
+<require-service <daemon coordinator>>
+
+<daemon coordinator {
+  argv: "exec python3 coordinator.py"
+  protocol: application/syndicate
+}>
+
+? <service-object <daemon coordinator> ?c> [
+  $c += { "worker-dataspace": $config }
+]
