@@ -17,6 +17,7 @@ def main():
     train_partitions, test_set = load_dataset()
     communicator = None
     test_module = test([1,3], 3)
+
     if config.COMM == "mpi": communicator = MPIFederatedCommunicator()
     elif config.COMM == "ipc": communicator = IPCFederatedCommunicator(test_module)
     
