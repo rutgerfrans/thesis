@@ -21,4 +21,7 @@ if [ "$COMM" == "ipc" ]; then
 elif [ "$COMM" == "mpi" ]; then
     mpiexec -n $(( N_PARTITIONS + 1 )) python3 -m src.drivers.driver
 
+elif [ "$COMM" == "sam" ]; then 
+    python3 -m src.drivers.driver
+
 fi

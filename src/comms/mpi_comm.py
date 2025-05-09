@@ -22,3 +22,4 @@ class MPIFederatedCommunicator(BaseFederatedCommunicator):
         if self.mpi_comm.Get_rank() == 0:
             if None in models: models.remove(None)
             return super().update_model(models, partitions, test_set, epoch)
+    

@@ -5,17 +5,15 @@ from syndicate import relay, turn, Symbol, Record, dataspace
 from syndicate import patterns as P
 from syndicate.during import During
 from src.data_loader import load_dataset
-from src.comms.ipc_comm import IPCFederatedCommunicator
+from src.comms.sam_comm import SAMFederatedCommunicator
 import src.utils as utils
 import config as cfg
-
-Shutdown = Symbol('shutdown')
 
 @relay.service(name='coordinator')
 @During().add_handler
 def main(config):
-    global_model_file = "tmpsam/global_model.pkl"
-    comm = IPCFederatedCommunicator()
+    global_model_file = "tmp/global_model.pkl"
+    comm = SAMFederatedCommunicator()
     train_partitions, test_set = load_dataset()
     
     global_model = comm.init_global_model()
@@ -23,7 +21,7 @@ def main(config):
 
     worker_ds = config['worker-dataspace'].embeddedValue
     #turn.log.info('Got worker-dataspace %s', worker_ds)
-    local_models = [] 
+    local_models = []
     ready_workers = []
     epoch = 0
 
@@ -44,8 +42,7 @@ def main(config):
             epoch = epoch + 1
         elif epoch >= cfg.N_EPOCHS and len(ready_workers) == cfg.N_PARTITIONS:
             turn.log.info("All %d epochs complete, shutting everything down", cfg.N_EPOCHS)
-            turn.publish(worker_ds, Record(Shutdown, []))
-            turn.log.info("Sent Shutdown record")
+            turn.publish(worker_ds, Record(Symbol('shutdown'), []))
             turn.stop()
 
     @dataspace.during(worker_ds, P.rec('update-globalmodel', P.CAPTURE))

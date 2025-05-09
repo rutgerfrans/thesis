@@ -6,8 +6,6 @@ from syndicate.during import During
 import src.utils as utils
 from src.comms.comm import BaseFederatedCommunicator
 
-Shutdown = Symbol('shutdown')
-
 @relay.service(name='worker')
 @During().add_handler
 def main(config):
@@ -24,7 +22,7 @@ def main(config):
         global_model = comm.train_model(utils.load_pickle(model_file), utils.load_pickle(partition_file))
 
         # save local model and assert to worker-dataspace
-        local_model_file = "tmpsam/local_model_file_"+str(worker_id)+".pkl"
+        local_model_file = "tmp/local_model_file_"+str(worker_id)+".pkl"
         utils.save_pickle(global_model, local_model_file)
         handle = turn.publish(worker_ds, Record(Symbol('update-globalmodel'), [[str(local_model_file),config ,worker_id]]))
         #turn.log.info('Worker %s trained local model',worker_id)

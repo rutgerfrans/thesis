@@ -1,9 +1,9 @@
 NETWORK_ARCHITECTURE = [28 * 28, 16, 16, 10]
 SGD_EPOCHS = 10
-MINI_BATCH_SIZE = 10
+MINI_BATCH_SIZE = 5
 ETA = 3.0
-N_EPOCHS = 30
-N_PARTITIONS = 8
+N_EPOCHS = 2
+N_PARTITIONS = 3
 TEST_SAMPLE_SIZE = 1000
 DEBUG = True
-COMM = "mpi" # "mpi" or "ipc" or "mpi_f"
+COMM = "mpi" # "mpi" or "ipc" or "sam"

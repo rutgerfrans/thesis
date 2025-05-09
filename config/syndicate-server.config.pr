@@ -1,15 +1,10 @@
 <require-service <daemon <worker 0>>>
 <require-service <daemon <worker 1>>>
 <require-service <daemon <worker 2>>>
-<require-service <daemon <worker 3>>>
-<require-service <daemon <worker 4>>>
-<require-service <daemon <worker 5>>>
-<require-service <daemon <worker 6>>>
-<require-service <daemon <worker 7>>>
 
 ? <run-service <daemon <worker ?n>>> [
   <daemon <worker $n> {
-    argv: "exec python3 -m src.sam.worker"
+    argv: "exec python3 -m src.workers.samworker"
     protocol: application/syndicate
   }>
   ? <service-object <daemon <worker $n>> ?w> [
@@ -22,7 +17,7 @@
 <require-service <daemon coordinator>>
 
 <daemon coordinator {
-  argv: "exec python3 -m src.sam.coordinator"
+  argv: "exec python3 -m src.workers.samcoordinator"
   protocol: application/syndicate
 }>
 
