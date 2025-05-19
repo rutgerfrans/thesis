@@ -26,12 +26,9 @@ class BaseFederatedCommunicator:
     
     def train_model(self, global_model, local_data):
         if isinstance(global_model, str):
-            global_model = mnist.deserialize_network(global_model)
-        net = mnist.Network(global_model.sizes)
-        net.biases = [b.copy() for b in global_model.biases]
-        net.weights = [w.copy() for w in global_model.weights]
-        net.SGD(local_data, epochs=config.SGD_EPOCHS, mini_batch_size=config.MINI_BATCH_SIZE, eta=config.ETA)
-        return net
+           global_model = mnist.deserialize_network(global_model)
+        global_model.SGD(local_data, epochs=config.SGD_EPOCHS, mini_batch_size=config.MINI_BATCH_SIZE, eta=config.ETA)
+        return global_model
     
     def update_model(self, models, partitions, test_set, epoch):
         data_sizes = [len(p) for p in partitions]
