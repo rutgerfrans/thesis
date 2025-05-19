@@ -2,7 +2,7 @@
 # Based on
 # https://raw.githubusercontent.com/mnielsen/neural-networks-and-deep-learning/master/src/network.py
 
-import numpy as np #type: ignore 
+import numpy as np
 import pickle, base64
 
 class Network(object):
@@ -84,14 +84,19 @@ class Network(object):
         raw = base64.b64decode(b64.encode('ascii'))
         return pickle.loads(raw)
 
-def serialize_network(net: Network) -> str:
-    raw = pickle.dumps(net)
-    return base64.b64encode(raw).decode('ascii')
-
-
-def deserialize_network(b64: str) -> Network:
-    raw = base64.b64decode(b64.encode('ascii'))
-    return pickle.loads(raw)
+def update_model(models, partitions):
+    data_sizes = [len(p) for p in partitions]
+    total_size = sum(data_sizes)
+    combined_biases = []
+    combined_weights = []
+    for layer in range(len(models[0].biases)):
+        wb = sum(model.biases[layer] * data_sizes[i] for i, model in enumerate(models)) / total_size
+        ww = sum(model.weights[layer] * data_sizes[i] for i, model in enumerate(models)) / total_size
+        combined_biases.append(wb)
+        combined_weights.append(ww)
+    model = Network(models[0].sizes)
+    model.biases, model.weights = combined_biases, combined_weights
+    return model
 
 def sigmoid(z):
     return 1.0/(1.0+np.exp(-z))

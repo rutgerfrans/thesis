@@ -1,9 +1,19 @@
 <require-service <daemon <worker 1>>>
 <require-service <daemon <worker 2>>>
-<require-service <daemon <jobqmanager>>>
+<require-service <daemon <worker 3>>>
+<require-service <daemon <worker 4>>>
+<require-service <daemon <worker 5>>>
+<require-service <daemon <worker 6>>>
+<require-service <daemon <epoch-manager>>>
+<require-service <daemon <jobq>>>
 
-<daemon <jobqmanager>{
-  argv: "exec python3 -m src.workers.jobq-manager"
+<daemon <epoch-manager> {
+  argv: "exec python3 -m src.workers.epoch-manager"
+  protocol: application/syndicate
+}>
+
+<daemon <jobq> {
+  argv: "exec python3 -m src.workers.jobq"
   protocol: application/syndicate
 }>
 
@@ -13,13 +23,14 @@
     protocol: application/syndicate
   }>
   ? <service-object <daemon <worker $n>> ?w> [
-    $w += { "worker-dataspace": $config, "worker": $w }
-    $log ! <log "-" { worker-ready: $w worker-number: $n }>
-    <worker-ready $w>
+    <worker $w>
   ]
 ]
 
-? <service-object <daemon <jobqmanager>> ?c> [
-  $c += { "worker-dataspace": $config}
-  <jobqmanager $c>
+? <service-object <daemon <jobq>> ?q> [
+  $q += { "dataspace": $config }
+]
+
+? <service-object <daemon <epoch-manager>> ?c> [
+  $c += { "worker-dataspace": $config }
 ]

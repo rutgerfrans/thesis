@@ -1,19 +1,14 @@
 from syndicate import relay, Record, turn
 from syndicate.during import During
-import src.utils as utils
-from src.comms.comm import BaseFederatedCommunicator
-import src.mnist as mnist
+import config as cfg
+from src.data_loader import serialize_data, deserialize_data
 
-TrainingJob = Record.makeConstructor('TJob', 'gm tp k') # global_model, training_partition
-
+TrainingJob = Record.makeConstructor('TJob', 'gm tp k')
 @relay.service(name='worker')
 @During().add_handler
 def main(data):
-    comm = BaseFederatedCommunicator()
-
     if TrainingJob.isClassOf(data):
-        #turn.log.info("received training job, starting training now.")
-        gm = data[0]
-        pt = data[1]
-        local_model = comm.train_model(gm, utils.load_pickle(pt))
-        turn.publish(TrainingJob._k(data).embeddedValue, [local_model, pt])
+        gm = deserialize_data(TrainingJob._gm(data))
+        pt = TrainingJob._tp(data)
+        gm.SGD(deserialize_data(pt), cfg.SGD_EPOCHS, cfg.MINI_BATCH_SIZE, cfg.ETA) 
+        turn.publish(TrainingJob._k(data).embeddedValue, [serialize_data(gm), pt])
