@@ -86,7 +86,7 @@ def main(data):
             nonlocal global_model
             updated_global_model = comm.update_model(local_models, train_partitions, test_set, current_epoch)
             turn.log.info(f"Epoch: {current_epoch} / {cfg.N_EPOCHS} | Final Model Evaluation: {updated_global_model.evaluate(test_set)} / {len(test_set)}")
-            global_model = updated_global_model
+            global_model = mnist.serialize_network(updated_global_model)
             if current_epoch < NUM_EPOCHS:
                 local_models.clear()
                 #turn.log.info("---- epoch %d complete; starting next ----", current_epoch)
