@@ -3,6 +3,7 @@
 # https://raw.githubusercontent.com/mnielsen/neural-networks-and-deep-learning/master/src/network.py
 
 import numpy as np #type: ignore 
+import pickle, base64
 
 class Network(object):
 
@@ -71,6 +72,26 @@ class Network(object):
 
     def cost_derivative(self, output_activations, y):
         return (output_activations-y)
+    
+    def __preserve_write_binary__(self, encoder):
+        raw = pickle.dumps(self)
+        b64 = base64.b64encode(raw).decode('ascii')
+        encoder.append(b64)
+    
+    @classmethod
+    def __preserve_read_binary__(cls, decoder):
+        b64 = decoder
+        raw = base64.b64decode(b64.encode('ascii'))
+        return pickle.loads(raw)
+
+def serialize_network(net: Network) -> str:
+    raw = pickle.dumps(net)
+    return base64.b64encode(raw).decode('ascii')
+
+
+def deserialize_network(b64: str) -> Network:
+    raw = base64.b64decode(b64.encode('ascii'))
+    return pickle.loads(raw)
 
 def sigmoid(z):
     return 1.0/(1.0+np.exp(-z))

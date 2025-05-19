@@ -25,6 +25,8 @@ class BaseFederatedCommunicator:
         return net
     
     def train_model(self, global_model, local_data):
+        if isinstance(global_model, str):
+            global_model = mnist.deserialize_network(global_model)
         net = mnist.Network(global_model.sizes)
         net.biases = [b.copy() for b in global_model.biases]
         net.weights = [w.copy() for w in global_model.weights]
