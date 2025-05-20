@@ -8,18 +8,18 @@
 <require-service <daemon <jobq>>>
 
 <daemon <epoch-manager> {
-  argv: "exec python3 -m src.workers.epoch-manager"
+  argv: "exec python3 -m src.sam.epoch-manager"
   protocol: application/syndicate
 }>
 
 <daemon <jobq> {
-  argv: "exec python3 -m src.workers.jobq"
+  argv: "exec python3 -m src.sam.jobq"
   protocol: application/syndicate
 }>
 
 ? <run-service <daemon <worker ?n>>> [
   <daemon <worker $n> {
-    argv: "exec python3 -m src.workers.worker"
+    argv: "exec python3 -m src.sam.worker"
     protocol: application/syndicate
   }>
   ? <service-object <daemon <worker $n>> ?w> [

@@ -15,13 +15,10 @@ echo "N_EPOCHS: $N_EPOCHS"
 echo "N_PARTITIONS: $N_PARTITIONS"
 echo "==============================="
 
-if [ "$COMM" == "ipc" ]; then
-    python3 -m src.drivers.driver
-
-elif [ "$COMM" == "mpi" ]; then
-    mpiexec -n $(( N_PARTITIONS + 1 )) python3 -m src.drivers.driver
+if [ "$COMM" == "mpi" ]; then
+    mpiexec -n $(( N_PARTITIONS + 1 )) python3 -m src.mpi.driver
 
 elif [ "$COMM" == "sam" ]; then 
-    python3 -m src.drivers.driver
+    syndicate-server -c config/rpc-syndicate-config.pr
 
 fi
