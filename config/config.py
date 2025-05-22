@@ -1,9 +1,9 @@
 NETWORK_ARCHITECTURE = [28 * 28, 16, 16, 10]
 SGD_EPOCHS = 10
-MINI_BATCH_SIZE = 5
+MINI_BATCH_SIZE = 32
 ETA = 3.0
-N_EPOCHS = 2
+N_EPOCHS = 3
 N_PARTITIONS = 4
 TEST_SAMPLE_SIZE = 1000
 DEBUG = True
-COMM = "sam" # "mpi" or "sam"
+COMM = "sam" # ["mpi","sam","pytorch","tensorflow"]

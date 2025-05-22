@@ -2,8 +2,6 @@
 <require-service <daemon <worker 2>>>
 <require-service <daemon <worker 3>>>
 <require-service <daemon <worker 4>>>
-<require-service <daemon <worker 5>>>
-<require-service <daemon <worker 6>>>
 <require-service <daemon <epoch-manager>>>
 <require-service <daemon <jobq>>>
 
