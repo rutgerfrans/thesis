@@ -1,7 +1,5 @@
-import os
-import re
-import glob
-import argparse
+import os, glob, argparse, time, csv, random
+from datetime import datetime
 import numpy as np
 import torch
 import torch.nn as nn
@@ -10,13 +8,14 @@ from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group, all_reduce, ReduceOp, get_rank, get_world_size
-
 from src.data_loader import load_dataset
 import config
 
+total_computation_time = 0.0
+
+fault_p = config.FAULT_P
 
 def ddp_setup():
-    # Initialize process group (requires env vars MASTER_ADDR, MASTER_PORT, RANK, WORLD_SIZE, LOCAL_RANK)
     init_process_group(backend="gloo", init_method="env://")
 
 class MNISTDataset(Dataset):
@@ -28,7 +27,7 @@ class MNISTDataset(Dataset):
 
     def __getitem__(self, idx):
         x, y = self.data[idx]
-        x = torch.tensor(x, dtype=torch.float32).view(1,28,28)
+        x = torch.tensor(x, dtype=torch.float32).view(1, 28, 28)
         if isinstance(y, (np.ndarray, list)) and len(y) == 10:
             y = int(np.argmax(y))
         y = torch.tensor(y, dtype=torch.long)
@@ -69,16 +68,16 @@ class FederatedTrainer:
         for epoch in range(self.local_epochs):
             self.dataloader.sampler.set_epoch(epoch)
             for x, y in self.dataloader:
-                x, y = x.to(self.device), y.to(self.device)
                 self.optimizer.zero_grad()
-                logits = self.model(x)
-                # convert labels to one-hot
-                target = F.one_hot(y, num_classes=logits.size(-1)).float()
-                loss = 0.5 * F.mse_loss(logits, target, reduction='mean')
+                logits = self.model(x.to(self.device))
+                target = F.one_hot(y.to(self.device), logits.size(-1)).float()
+                loss = 0.5 * F.mse_loss(logits, target, reduction="mean")
                 loss.backward()
                 self.optimizer.step()
+                self.average_parameters()
                 total_loss += loss.item()
-        return total_loss / (len(self.dataloader) * self.local_epochs)
+        avg_loss = total_loss / (len(self.dataloader) * self.local_epochs)
+        return avg_loss
 
     def average_parameters(self):
         for param in self.model.module.parameters():
@@ -86,19 +85,26 @@ class FederatedTrainer:
             param.data /= self.world_size
 
     def train(self, total_rounds, start_round=0):
+        global total_computation_time
         for r in range(start_round, total_rounds):
+            if fault_p > 0.0 and random.uniform(0, 1) < fault_p:
+                print(f"[worker {self.rank}] Injecting fault at round={r}")
+                os._exit(1)
+
+            # Measure computation time for this worker for one global round
+            t0 = time.perf_counter()
             avg_loss = self.local_train()
             self.average_parameters()
-            global_round = r + 1
-            if self.rank == 0 and global_round % self.save_every == 0:
-                ckpt = {
-                    'model': self.model.module.state_dict(),
-                    'optimizer': self.optimizer.state_dict(),
-                    'round': global_round
-                }
-                path = f"{self.snapshot_path}_round{global_round}.pt"
-                torch.save(ckpt, path)
-                print(f"[Round {global_round}] Avg Loss: {avg_loss:.6f} | Saved checkpoint {path}")
+            t1 = time.perf_counter()
+            comp_time = t1 - t0
+
+            # Accumulate into global counter
+            total_computation_time += comp_time
+
+            if self.rank == 0 and (r + 1) % self.save_every == 0:
+                path = f"{self.snapshot_path}_round{r+1}.pt"
+                torch.save({"model": self.model.module.state_dict(),"optimizer": self.optimizer.state_dict(),"round": r + 1}, path)
+                print(f"[Round {r+1}] Avg Loss: {avg_loss:.6f} | Comp Time: {comp_time:.4f}s | Saved checkpoint {path}")
 
 
 def load_train_objs():
@@ -116,56 +122,80 @@ def prepare_dataloader(dataset, batch_size):
 
 
 def main():
+    TIMING_CSV = os.path.join(os.getcwd(), "src/pytorch/timings/epoch_timings.csv")
+    if not os.path.exists(TIMING_CSV):
+        with open(TIMING_CSV, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "system_overhead",
+                "avg_comp_time_per_worker"
+            ])
+
     parser = argparse.ArgumentParser("PyTorch DDP Federated MNIST")
-    parser.add_argument('--rounds',        type=int,   default=config.N_EPOCHS,                   help='Global federated rounds')
-    parser.add_argument('--local_epochs',  type=int,   default=config.SGD_EPOCHS,                  help='Local SGD epochs per round')
-    parser.add_argument('--batch_size',    type=int,   default=config.MINI_BATCH_SIZE,help='Batch size')
-    parser.add_argument('--save_every',    type=int,   default=1,                   help='Checkpoint every N rounds')
-    parser.add_argument('--snapshot_path', type=str,   default='src/pytorch/snapshot',          help='Checkpoint prefix')
+    parser.add_argument("--rounds", type=int, default=config.N_EPOCHS)
+    parser.add_argument("--local_epochs", type=int, default=config.SGD_EPOCHS)
+    parser.add_argument("--batch_size", type=int, default=config.MINI_BATCH_SIZE)
+    parser.add_argument("--save_every", type=int, default=1)
+    parser.add_argument("--snapshot_path", type=str, default="src/pytorch/snapshot")
     args = parser.parse_args()
 
     ddp_setup()
-    # load data, model, optimizer
     dataset, model, optimizer = load_train_objs()
     dataloader = prepare_dataloader(dataset, args.batch_size)
 
     world_size = get_world_size()
     rank = get_rank()
-    samples_per_worker = len(dataset)
-    import math
-    batches_per_worker = math.ceil(samples_per_worker / args.batch_size)
-    steps_per_round    = batches_per_worker * args.local_epochs
+
+    run_start = datetime.now()
+    if rank == 0:
+        print(f"Started training at {run_start.isoformat()}")
 
     if rank == 0:
-        print(f"num_workers={world_size}  "
-              f"samples_per_worker={samples_per_worker}  "
-              f"batches_per_worker={batches_per_worker}  "
-              f"steps_per_round={steps_per_round}")
+        print(f"Workers={world_size}, Samples/worker={len(dataset)}, Batch={args.batch_size}, Local epochs={args.local_epochs}")
 
-    # find last checkpoint
     ckpts = sorted(glob.glob(f"{args.snapshot_path}_round*.pt"))
     if ckpts:
-        last = ckpts[-1]
-        info = torch.load(last, map_location='cpu')
-        model.load_state_dict(info['model'])
-        optimizer.load_state_dict(info['optimizer'])
-        start_round = info.get('round', 0)
-        if start_round >= args.rounds:
-            if get_rank() == 0:
-                print(f"All rounds already completed (round {start_round}). Exiting.")
+        info = torch.load(ckpts[-1], map_location="cpu")
+        model.load_state_dict(info["model"])
+        optimizer.load_state_dict(info["optimizer"])
+        start_round = info.get("round", 0)
+        if start_round >= args.rounds and rank == 0:
+            print(f"All rounds completed (round {start_round}). Exiting.")
             destroy_process_group()
             return
     else:
         start_round = 0
 
-    trainer = FederatedTrainer(
-        model, dataloader, optimizer,
-        local_epochs=args.local_epochs,
-        save_every=args.save_every,
-        snapshot_path=args.snapshot_path
-    )
+    trainer = FederatedTrainer(model, dataloader, optimizer,args.local_epochs, args.save_every, args.snapshot_path)
     trainer.train(args.rounds, start_round)
+
+    # After training, gather and average computation times across workers
+    comp_tensor = torch.tensor(total_computation_time, dtype=torch.float64)
+    all_reduce(comp_tensor, op=ReduceOp.SUM)
+    avg_comp_time_per_worker = comp_tensor.item() / world_size
+
+    if rank == 0:
+        run_end = datetime.now()
+        total_runtime = (run_end - run_start).total_seconds()
+        system_overhead = total_runtime - avg_comp_time_per_worker
+        #print(f"Completed training at {run_end.isoformat()}")
+        #print(f"Avg comp time per worker: {avg_comp_time_per_worker:.4f}s; System overhead: {system_overhead:.4f}s")
+
+        with open(TIMING_CSV, "a", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                f"{system_overhead:.6f}",
+                f"{avg_comp_time_per_worker:.6f}"
+            ])
+    if rank == 0:
+        snapshots = glob.glob(f"{args.snapshot_path}_round*.pt")
+        for snap in snapshots:
+            try:
+                os.remove(snap)
+                print(f"Deleted snapshot: {snap}")
+            except OSError as e:
+                print(f"Error deleting {{snap}}: {{e}}")
     destroy_process_group()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -182,7 +182,7 @@ model.fit(
 # after model.fit(…) and before os._exit(0):
 if is_chief:
     # read the single per‐epoch log
-    df = pd.read_csv("epoch_timings.csv")
+    df = pd.read_csv("src/tensorflow/timings/epoch_timings.csv")
 
     # sum up per worker
     per_worker = df.groupby("worker").sum()[[
