@@ -1,4 +1,4 @@
-<require-service <daemon <worker 1>>>
+# WORKERS_PLACEHOLDER
 <require-service <daemon <epoch-manager>>>
 <require-service <daemon <jobq>>>
 

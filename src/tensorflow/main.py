@@ -91,6 +91,9 @@ if __name__ == '__main__':
     (x_train,y_train),(x_test,y_test) = tf.keras.datasets.mnist.load_data()
     x_train = (x_train.astype('float32') / 255.0)[..., None]
     x_test  = (x_test.astype('float32')  / 255.0)[..., None]
+    if config.TRAIN_SAMPLE_SIZE > 0:
+        x_train = x_train[: config.TRAIN_SAMPLE_SIZE]
+        y_train = y_train[: config.TRAIN_SAMPLE_SIZE]
 
     batch_size   = config.MINI_BATCH_SIZE
     LOCAL_EPOCHS = config.SGD_EPOCHS
@@ -98,12 +101,13 @@ if __name__ == '__main__':
     steps_per_worker = math.ceil(x_train.shape[0] / batch_size / strategy.num_replicas_in_sync) * LOCAL_EPOCHS
 
     with strategy.scope():
-        model = tf.keras.Sequential([
-            tf.keras.layers.Flatten(input_shape=(28,28,1)),
-            tf.keras.layers.Dense(16, activation='sigmoid'),
-            tf.keras.layers.Dense(16, activation='sigmoid'),
-            tf.keras.layers.Dense(10, activation='sigmoid'),
-        ])
+        layers = []
+        layers.append(tf.keras.layers.Flatten(input_shape=(28,28,1)))
+        for units in config.NETWORK_ARCHITECTURE[1:-1]:
+            layers.append(tf.keras.layers.Dense(units, activation='sigmoid'))
+        layers.append(tf.keras.layers.Dense(config.NETWORK_ARCHITECTURE[-1],
+                                            activation='sigmoid'))
+        model = tf.keras.Sequential(layers)
         model.compile(
             optimizer=tf.keras.optimizers.SGD(learning_rate=config.ETA),
             loss='mse',

@@ -18,8 +18,28 @@ echo "==============================="
 if [ "$COMM" == "mpi" ]; then
     mpiexec -n $(( N_PARTITIONS + 1 )) python3 -m src.mpi.driver
 
-elif [ "$COMM" == "sam" ]; then 
-    syndicate-server -c config/rpc-syndicate-config.pr
+elif [ "$COMM" == "sam" ]; then
+    # how many workers?
+    N=$(python3 - <<EOF
+import config
+print(config.N_PARTITIONS)
+EOF
+)
+    # build the snippet in a temp file
+    TMP=$(mktemp)
+    for (( i=1; i<=N; i++ )); do
+      echo "<require-service <daemon <worker $i>>>"
+    done > "$TMP"
+
+    # now insert it into the placeholder in your skeleton
+    sed "/# WORKERS_PLACEHOLDER/{
+        r $TMP
+        d
+    }" config/template.pr > config/rpc-syndicate-config.pr
+
+    rm "$TMP"
+
+    syndicate-server --control -c config/rpc-syndicate-config.pr
 
 elif [ "$COMM" == "pytorch" ]; then 
     # Automatic restart loop on failure

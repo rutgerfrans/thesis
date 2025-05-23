@@ -110,7 +110,13 @@ class FederatedTrainer:
 def load_train_objs():
     partitions, _ = load_dataset()
     rank = int(os.environ.get("LOCAL_RANK", 0))
-    dataset = MNISTDataset(partitions[rank])
+
+    data = partitions[rank]
+    # apply TRAIN_SAMPLE_SIZE
+    if config.TRAIN_SAMPLE_SIZE > 0:
+        data = data[: config.TRAIN_SAMPLE_SIZE]
+    dataset = MNISTDataset(data)
+    
     model = MNISTTorchNet(config.NETWORK_ARCHITECTURE)
     optimizer = torch.optim.SGD(model.parameters(), lr=config.ETA)
     return dataset, model, optimizer

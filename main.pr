@@ -1,4 +1,7 @@
-<require-service <daemon <worker 1>>>
+<require-service <daemon <worker $i>>>
+<require-service <daemon <worker $i>>>
+<require-service <daemon <worker $i>>>
+<require-service <daemon <worker $i>>>
 <require-service <daemon <epoch-manager>>>
 <require-service <daemon <jobq>>>
 
@@ -27,5 +30,5 @@
 ]
 
 ? <service-object <daemon <epoch-manager>> ?c> [
-  $c += { "worker-dataspace": $config, "syndicate-server-control": $control }
+  $c += { "worker-dataspace": $config }
 ]

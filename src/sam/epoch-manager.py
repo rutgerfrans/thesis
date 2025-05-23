@@ -8,6 +8,7 @@ import os, csv, time
 
 TrainingJob = Record.makeConstructor('TJob', 'gm tp k')
 Job = Record.makeConstructor('job', 'spec')
+ExitServer = Record.makeConstructor('exit', 'code')
 
 NUM_EPOCHS = cfg.N_EPOCHS
 
@@ -22,9 +23,12 @@ if not os.path.exists(TIMING_CSV):
 def main(data):
     total_computation_time = 0
     total_systemoverhead_time = 0
-
+    control = data['syndicate-server-control'].embeddedValue
     ds = data['worker-dataspace'].embeddedValue
     train_partitions, test_set = load_dataset()
+    if cfg.TRAIN_SAMPLE_SIZE > 0:
+        per_worker = cfg.TRAIN_SAMPLE_SIZE // cfg.N_PARTITIONS
+        train_partitions = [p[:per_worker] for p in train_partitions]
 
     def run_epoch(global_model, current_epoch):
         if current_epoch > NUM_EPOCHS:
@@ -34,6 +38,8 @@ def main(data):
             with open(TIMING_CSV, "a", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow([f"{time_to_completion-total_computation_time:.6f}", f"{total_computation_time:.6f}"])
+            # ask the server to shut down cleanly with exit‐code 0
+            turn.send(control, ExitServer(0))
             return
 
         @turn.facet
