@@ -23,15 +23,13 @@ def main(data):
 
         pt = TrainingJob._tp(data)
 
-        scc_time = time.perf_counter()
-
         sr_time = time.perf_counter()
         pt = deserialize_data(pt)
         er_time = time.perf_counter()
         read_time += (er_time - sr_time)
 
+        scc_time = time.perf_counter()
         gm.SGD(pt,cfg.SGD_EPOCHS,cfg.MINI_BATCH_SIZE,cfg.ETA)
-
         ecc_time = time.perf_counter()
         comp_time = ecc_time - scc_time
 

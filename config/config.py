@@ -7,4 +7,4 @@ N_PARTITIONS = 4
 TEST_SAMPLE_SIZE = 1000
 FAULT_P = 0.0
 DEBUG = True
-COMM = "pytorch" # ["mpi","sam","pytorch","tensorflow"]
+COMM = "sam" # ["mpi","sam","pytorch","tensorflow"]

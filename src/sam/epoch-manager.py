@@ -57,15 +57,12 @@ def main(data):
                     turn.log.info(f"Epoch: {current_epoch} / {cfg.N_EPOCHS} | Final Model Evaluation: {updated_global_model.evaluate(test_set)} / {len(test_set)}")
                     turn.stop(facet = epoch_facet,continuation = lambda: run_epoch(updated_global_model, current_epoch + 1))
 
-            turn.log.info("i am distributting at %r", current_epoch)
-            # add serializing time to total read timer
             start_read_dist_time = time.perf_counter()
             for part in train_partitions:
                 turn.publish(ds, Job(TrainingJob(serialize_data(global_model),serialize_data(part),Embedded(turn.ref(k)))))
             end_read_dist_time = time.perf_counter()
             nonlocal total_systemoverhead_time
             total_systemoverhead_time += (end_read_dist_time - start_read_dist_time)
-            turn.log.info("systemoverhead time at %r is %r", current_epoch, total_systemoverhead_time)
 
     ttc_start = time.perf_counter()
     run_epoch(mnist.Network(cfg.NETWORK_ARCHITECTURE), 1)

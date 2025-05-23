@@ -1,206 +1,138 @@
-import os
+import os, glob, math, time, csv, json, random
+from datetime import datetime
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 os.environ["TF_CPP_MIN_VLOG_LEVEL"] = "99"
-import json, math, time, csv, random
-import tensorflow as tf
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 import config
-import pandas as pd
+import tensorflow as tf
 
 fault_p = config.FAULT_P
 
+def clear_snapshots(checkpoint_dir):
+    for fname in glob.glob(os.path.join(checkpoint_dir, 'ckpt-*')):
+        try:
+            os.remove(fname)
+            print(f"Deleted checkpoint: {fname}")
+        except OSError as e:
+            print(f"Error deleting {fname}: {e}")
+
 class FaultInjectionCallback(tf.keras.callbacks.Callback):
     def on_train_batch_begin(self, batch, logs=None):
-        # each batch has a chance fault_p to kill this process immediately
         if fault_p > 0.0 and random.random() < fault_p:
-            print(f"[worker {task_id}] Injecting fault at batch {batch}")
+            resolver = tf.distribute.cluster_resolver.TFConfigClusterResolver()
+            print(f"[worker {resolver.task_id}] Injecting fault at batch {batch}")
             os._exit(1)
 
-class EpochTimingCallback(tf.keras.callbacks.Callback):
+class TimingCallback(tf.keras.callbacks.Callback):
     def on_train_begin(self, logs=None):
-        # prepare in-memory accumulators
-        self.epoch_batch_time = 0.0
-        self.epoch_read_time  = 0.0
-        self.epoch_comm_time  = 0.0
-        self.last_batch_end   = time.perf_counter()
-        self.batch_in_epoch   = 0
-
-        # ensure output CSV exists with header
+        self.compute_time_total = 0.0
         self.csv_path = os.path.join(os.getcwd(), "src/tensorflow/timings/epoch_timings.csv")
         if not os.path.exists(self.csv_path):
-            with open(self.csv_path, "w", newline="") as f:
+            os.makedirs(os.path.dirname(self.csv_path), exist_ok=True)
+            with open(self.csv_path, 'w', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow([
-                    "worker", "epoch",
-                    "total_batch_time",
-                    "total_read_time",
-                    "total_comm_time"
-                ])
+                writer.writerow(["system_overhead","avg_compute_time_per_worker"])
 
-    def on_train_batch_begin(self, batch, logs=None):
-        # mark the moment we start “reading” next batch
-        now = time.perf_counter()
-        self.read_start = now
-
-    def on_train_batch_end(self, batch, logs=None):
-        end = time.perf_counter()
-        # total time this batch (including any idle from last_batch_end)
-        batch_time = end - self.last_batch_end
-        # read time = from last batch end until batch_begin
-        read_time  = self.read_start - self.last_batch_end
-        # comm+compute = rest
-        comm_time  = batch_time - read_time
-
-        # accumulate
-        self.epoch_batch_time += batch_time
-        self.epoch_read_time  += read_time
-        self.epoch_comm_time  += comm_time
-        self.batch_in_epoch   += 1
-        self.last_batch_end    = end
+    def on_epoch_begin(self, epoch, logs=None):
+        self.epoch_comp_start = time.perf_counter()
 
     def on_epoch_end(self, epoch, logs=None):
-        # figure out worker id
+        t1 = time.perf_counter()
+        comp = t1 - self.epoch_comp_start
+        self.compute_time_total += comp
         resolver = tf.distribute.cluster_resolver.TFConfigClusterResolver()
-        worker_id = resolver.task_id
+        if resolver.task_type == 'worker' and resolver.task_id == 0:
+            print(f"[Epoch {epoch+1}] compute_time={comp:.4f}s")
 
-        # append one line for this epoch
-        with open(self.csv_path, "a", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                worker_id,
-                epoch + 1,  # 1-based epoch count
-                f"{self.epoch_batch_time:.6f}",
-                f"{self.epoch_read_time:.6f}",
-                f"{self.epoch_comm_time:.6f}"
-            ])
+    def on_train_end(self, logs=None):
+        run_start = getattr(self, 'run_start', None)
+        run_end = datetime.now()
+        total_wall = (run_end - run_start).total_seconds()
 
-        # reset accumulators for next epoch
-        self.epoch_batch_time = 0.0
-        self.epoch_read_time  = 0.0
-        self.epoch_comm_time  = 0.0
-        self.last_batch_end   = time.perf_counter()
-        self.batch_in_epoch   = 0
+        comp_tensor = tf.constant(self.compute_time_total, dtype=tf.float64)
+        comp_sum = tf.raw_ops.CollectiveReduce(
+            input=comp_tensor,
+            group_size=tf.distribute.get_strategy().num_replicas_in_sync,
+            group_key=1,
+            instance_key=1,
+            merge_op='Add',
+            final_op='Id',
+            subdiv_offsets=[0]
+        )
+        avg_compute = comp_sum.numpy() / tf.distribute.get_strategy().num_replicas_in_sync
 
-tf.get_logger().setLevel('ERROR')
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
+        system_overhead = total_wall - avg_compute
 
-if "TF_CONFIG" not in os.environ:
-    tf_config = {
-        "cluster": {"worker": ["localhost:12345"]},
-        "task":    {"type": "worker", "index": 0}
-    }
-    os.environ["TF_CONFIG"] = json.dumps(tf_config)
-print("TF_CONFIG:", os.environ["TF_CONFIG"])
+        resolver = tf.distribute.cluster_resolver.TFConfigClusterResolver()
+        if resolver.task_type == 'worker' and resolver.task_id == 0:
+            print(f"Completed training at {run_end.isoformat()}")
+            print(f"avg_compute_per_worker={avg_compute:.4f}s; system_overhead={system_overhead:.4f}s")
+            with open(self.csv_path, 'a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([f"{system_overhead:.6f}", f"{avg_compute:.6f}"])
 
-strategy = tf.distribute.MultiWorkerMirroredStrategy()
-initial_epoch = 0
+if __name__ == '__main__':
+    run_start = datetime.now()
+    TimingCallback.run_start = run_start
 
-(mnist_images, mnist_labels), (test_images, test_labels) = tf.keras.datasets.mnist.load_data()
-mnist_images = (mnist_images.astype("float32") / 255.0)[..., None]
-test_images  = (test_images.astype("float32")  / 255.0)[..., None]
+    if 'TF_CONFIG' not in os.environ:
+        tf_config = {
+            'cluster':{'worker':['localhost:12345']},
+            'task':  {'type':'worker','index':0}
+        }
+        os.environ['TF_CONFIG'] = json.dumps(tf_config)
+    resolver = tf.distribute.cluster_resolver.TFConfigClusterResolver()
+    task_type, task_id = resolver.task_type, resolver.task_id
+    is_chief = (task_type=='worker' and task_id==0)
 
-batch_size    = config.MINI_BATCH_SIZE
-LOCAL_EPOCHS  = config.SGD_EPOCHS
-ROUNDS        = config.N_EPOCHS
+    strategy = tf.distribute.MultiWorkerMirroredStrategy()
+    print(f"Starting training at {run_start.isoformat()}, task {task_id}")
 
-# Prepare datasets
-train_dataset = tf.data.Dataset.from_tensor_slices(
-    (mnist_images, tf.one_hot(mnist_labels, 10))
-).shuffle(60000).batch(batch_size).repeat()
-test_dataset = tf.data.Dataset.from_tensor_slices(
-    (test_images, tf.one_hot(test_labels, 10))
-).batch(batch_size)
+    (x_train,y_train),(x_test,y_test) = tf.keras.datasets.mnist.load_data()
+    x_train = (x_train.astype('float32') / 255.0)[..., None]
+    x_test  = (x_test.astype('float32')  / 255.0)[..., None]
 
-cluster_spec       = strategy.cluster_resolver.cluster_spec()
-num_workers        = len(cluster_spec.as_dict()['worker'])
-samples_per_worker = mnist_images.shape[0] // num_workers
-batches_per_worker = math.ceil(samples_per_worker / batch_size)
-steps_per_round    = batches_per_worker * LOCAL_EPOCHS
+    batch_size   = config.MINI_BATCH_SIZE
+    LOCAL_EPOCHS = config.SGD_EPOCHS
+    ROUNDS       = config.N_EPOCHS
+    steps_per_worker = math.ceil(x_train.shape[0] / batch_size / strategy.num_replicas_in_sync) * LOCAL_EPOCHS
 
-cluster_resolver = tf.distribute.cluster_resolver.TFConfigClusterResolver()
-task_type, task_id = cluster_resolver.task_type, cluster_resolver.task_id
-is_chief = (task_type == "worker" and task_id == 0)
+    with strategy.scope():
+        model = tf.keras.Sequential([
+            tf.keras.layers.Flatten(input_shape=(28,28,1)),
+            tf.keras.layers.Dense(16, activation='sigmoid'),
+            tf.keras.layers.Dense(16, activation='sigmoid'),
+            tf.keras.layers.Dense(10, activation='sigmoid'),
+        ])
+        model.compile(
+            optimizer=tf.keras.optimizers.SGD(learning_rate=config.ETA),
+            loss='mse',
+            metrics=['accuracy']
+        )
 
-if is_chief:
-    print(f"num_workers={num_workers}  samples_per_worker={samples_per_worker}  "
-          f"batches_per_worker={batches_per_worker}  steps_per_round={steps_per_round}")
+    ckpt_dir = os.path.join(os.getcwd(),'src','tensorflow','checkpoints')
+    os.makedirs(ckpt_dir, exist_ok=True)
+    ckpt_prefix = os.path.join(ckpt_dir,'ckpt-{epoch}')
 
-with strategy.scope():
-    # Build model
-    model = tf.keras.Sequential([
-        tf.keras.layers.Flatten(input_shape=(28,28,1)),
-        tf.keras.layers.Dense(16, activation="sigmoid"),
-        tf.keras.layers.Dense(16, activation="sigmoid"),
-        tf.keras.layers.Dense(10, activation="sigmoid"),
-    ])
-    optimizer = tf.keras.optimizers.SGD(learning_rate=config.ETA)
-    model.compile(
-        optimizer=optimizer,
-        loss=tf.keras.losses.MeanSquaredError(),
-        metrics=["accuracy"]
+    callbacks = [FaultInjectionCallback(), TimingCallback()]
+    if is_chief:
+        callbacks.insert(0, tf.keras.callbacks.ModelCheckpoint(
+            filepath=ckpt_prefix,
+            save_weights_only=True,
+            save_freq='epoch'
+        ))
+
+    model.fit(
+        tf.data.Dataset.from_tensor_slices((x_train, tf.one_hot(y_train,10)))
+            .shuffle(60000).batch(batch_size).repeat(),
+        epochs=ROUNDS,
+        steps_per_epoch=steps_per_worker,
+        validation_data=tf.data.Dataset.from_tensor_slices((x_test, tf.one_hot(y_test,10))).batch(batch_size),
+        verbose=1 if is_chief else 0,
+        callbacks=callbacks
     )
 
-    checkpoint_dir = os.path.join(os.getcwd(), 'src','tensorflow','checkpoints')
-    checkpoint_prefix = os.path.join(checkpoint_dir, 'ckpt-{epoch}')
-    os.makedirs(checkpoint_dir, exist_ok=True)
-
-    latest_ckpt = tf.train.latest_checkpoint(checkpoint_dir)
-    if latest_ckpt:
-        if is_chief:
-            print(f"Loading weights from {latest_ckpt}")
-        model.load_weights(latest_ckpt)
-        try:
-            initial_epoch = int(latest_ckpt.split('-')[-1])
-        except ValueError:
-            initial_epoch = 0
-
-    # Build callbacks list
-    callbacks = []
     if is_chief:
-        callbacks.append(
-            tf.keras.callbacks.ModelCheckpoint(
-                filepath=checkpoint_prefix,
-                save_weights_only=True,
-                save_freq='epoch'
-            )
-        )
-    # append timing callback on every worker
-    callbacks.append(EpochTimingCallback())
-    callbacks.append(FaultInjectionCallback())
+        clear_snapshots(ckpt_dir)
 
-# Train (all workers)
-model.fit(
-    train_dataset,
-    epochs=ROUNDS,
-    initial_epoch=initial_epoch,
-    steps_per_epoch=steps_per_round,
-    validation_data=test_dataset,
-    validation_steps=math.ceil(test_images.shape[0] / batch_size),
-    verbose=1 if is_chief else 0,
-    callbacks=callbacks
-)
-
-# after model.fit(…) and before os._exit(0):
-if is_chief:
-    # read the single per‐epoch log
-    df = pd.read_csv("src/tensorflow/timings/epoch_timings.csv")
-
-    # sum up per worker
-    per_worker = df.groupby("worker").sum()[[
-        "total_batch_time", "total_read_time", "total_comm_time"
-    ]]
-
-    print("\nPer-worker total timings (seconds):")
-    for worker, row in per_worker.iterrows():
-        print(f"  worker {int(worker):>2}:  "
-              f"batch={row.total_batch_time:.2f}, "
-              f"read={row.total_read_time:.2f}, "
-              f"comm+comp={row.total_comm_time:.2f}")
-
-    # compute averages
-    avg = per_worker.mean()
-    print(f"\nAverage over {len(per_worker)} workers:  "
-          f"batch={avg.total_batch_time:.2f}, "
-          f"read={avg.total_read_time:.2f}, "
-          f"comm+comp={avg.total_comm_time:.2f}\n")
-
-os._exit(0)
+    os._exit(0)
