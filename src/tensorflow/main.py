@@ -1,10 +1,11 @@
 import os, glob, math, time, csv, json, random
 from datetime import datetime
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-os.environ["TF_CPP_MIN_VLOG_LEVEL"] = "99"
+os.environ["TF_CPP_VLOG_LEVEL"] = "99"
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 import config
 import tensorflow as tf
+from tensorflow.keras.callbacks import BackupAndRestore  # new import
 
 fault_p = config.FAULT_P
 
@@ -17,7 +18,7 @@ def clear_snapshots(checkpoint_dir):
             print(f"Error deleting {fname}: {e}")
 
 class FaultInjectionCallback(tf.keras.callbacks.Callback):
-    def on_train_batch_begin(self, batch, logs=None):
+    def on_epoch_begin(self, batch, logs=None):
         if fault_p > 0.0 and random.random() < fault_p:
             resolver = tf.distribute.cluster_resolver.TFConfigClusterResolver()
             print(f"[worker {resolver.task_id}] Injecting fault at batch {batch}")
@@ -118,7 +119,15 @@ if __name__ == '__main__':
     os.makedirs(ckpt_dir, exist_ok=True)
     ckpt_prefix = os.path.join(ckpt_dir,'ckpt-{epoch}')
 
-    callbacks = [FaultInjectionCallback(), TimingCallback()]
+    # configure callbacks, including BackupAndRestore for full resume support
+    backup_dir = os.path.join(os.getcwd(), 'src', 'tensorflow', 'backup')
+    os.makedirs(backup_dir, exist_ok=True)
+
+    callbacks = [
+        BackupAndRestore(backup_dir),
+        FaultInjectionCallback(),
+        TimingCallback(),
+    ]
     if is_chief:
         callbacks.insert(0, tf.keras.callbacks.ModelCheckpoint(
             filepath=ckpt_prefix,
