@@ -12,5 +12,5 @@ N_PARTITIONS     = int(os.getenv("N_PARTITIONS", 2))
 TEST_SAMPLE_SIZE = int(os.getenv("TEST_SAMPLE_SIZE", 1000))
 FAULT_P          = float(os.getenv("FAULT_P", 0.0))
 DEBUG            = os.getenv("DEBUG", "True") == "True"
-COMM             = os.getenv("COMM", "sam")
+COMM             = os.getenv("COMM", "tensorflow")
 TRAIN_SAMPLE_SIZE = int(os.getenv("TRAIN_SAMPLE_SIZE", -1))

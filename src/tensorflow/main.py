@@ -5,7 +5,9 @@ os.environ["TF_CPP_VLOG_LEVEL"] = "99"
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 import config
 import tensorflow as tf
-from tensorflow.keras.callbacks import BackupAndRestore  # new import
+from tensorflow.keras.callbacks import BackupAndRestore
+from src.data_loader import load_dataset
+import numpy as np
 
 fault_p = config.FAULT_P
 
@@ -89,25 +91,35 @@ if __name__ == '__main__':
     strategy = tf.distribute.MultiWorkerMirroredStrategy()
     print(f"Starting training at {run_start.isoformat()}, task {task_id}")
 
-    (x_train,y_train),(x_test,y_test) = tf.keras.datasets.mnist.load_data()
-    x_train = (x_train.astype('float32') / 255.0)[..., None]
-    x_test  = (x_test.astype('float32')  / 255.0)[..., None]
+    partitions, test_data = load_dataset()
+    local_data = partitions[task_id]
+    x_local = np.stack([img.flatten() for img, _ in local_data])
+    x_local = x_local.reshape(-1, 28, 28, 1).astype('float32')
+    y_local = np.stack([label.flatten() for _, label in local_data]).astype('float32')
     if config.TRAIN_SAMPLE_SIZE > 0:
-        x_train = x_train[: config.TRAIN_SAMPLE_SIZE]
-        y_train = y_train[: config.TRAIN_SAMPLE_SIZE]
+        x_local = x_local[:config.TRAIN_SAMPLE_SIZE]
+        y_local = y_local[:config.TRAIN_SAMPLE_SIZE]
 
     batch_size   = config.MINI_BATCH_SIZE
     LOCAL_EPOCHS = config.SGD_EPOCHS
     ROUNDS       = config.N_EPOCHS
-    steps_per_worker = math.ceil(x_train.shape[0] / batch_size / strategy.num_replicas_in_sync) * LOCAL_EPOCHS
+    steps_per_epoch = math.ceil(x_local.shape[0] / batch_size) * LOCAL_EPOCHS
+
+    train_dataset = (tf.data.Dataset.from_tensor_slices((x_local, y_local))
+                     .shuffle(x_local.shape[0])
+                     .batch(batch_size)
+                     .repeat())
+    
+    x_test, y_test_int = zip(*test_data)
+    x_test = np.stack([img.flatten() for img in x_test]).reshape(-1, 28, 28, 1).astype('float32')
+    y_test = tf.one_hot(np.array(y_test_int), config.NETWORK_ARCHITECTURE[-1])
+    test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test)).batch(batch_size)
 
     with strategy.scope():
-        layers = []
-        layers.append(tf.keras.layers.Flatten(input_shape=(28,28,1)))
+        layers = [tf.keras.layers.Flatten(input_shape=(28,28,1))]
         for units in config.NETWORK_ARCHITECTURE[1:-1]:
             layers.append(tf.keras.layers.Dense(units, activation='sigmoid'))
-        layers.append(tf.keras.layers.Dense(config.NETWORK_ARCHITECTURE[-1],
-                                            activation='sigmoid'))
+        layers.append(tf.keras.layers.Dense(config.NETWORK_ARCHITECTURE[-1], activation='sigmoid'))
         model = tf.keras.Sequential(layers)
         model.compile(
             optimizer=tf.keras.optimizers.SGD(learning_rate=config.ETA),
@@ -115,19 +127,14 @@ if __name__ == '__main__':
             metrics=['accuracy']
         )
 
-    ckpt_dir = os.path.join(os.getcwd(),'src','tensorflow','checkpoints')
-    os.makedirs(ckpt_dir, exist_ok=True)
+    # Checkpoint & backup dirs
+    ckpt_dir   = os.path.join(os.getcwd(),'src','tensorflow','checkpoints')
+    backup_dir = os.path.join(os.getcwd(),'src','tensorflow','backup')
+    os.makedirs(ckpt_dir,   exist_ok=True)
+    os.makedirs(backup_dir, exist_ok=True)
     ckpt_prefix = os.path.join(ckpt_dir,'ckpt-{epoch}')
 
-    # configure callbacks, including BackupAndRestore for full resume support
-    backup_dir = os.path.join(os.getcwd(), 'src', 'tensorflow', 'backup')
-    os.makedirs(backup_dir, exist_ok=True)
-
-    callbacks = [
-        BackupAndRestore(backup_dir),
-        FaultInjectionCallback(),
-        TimingCallback(),
-    ]
+    callbacks = [BackupAndRestore(backup_dir), FaultInjectionCallback(), TimingCallback()]
     if is_chief:
         callbacks.insert(0, tf.keras.callbacks.ModelCheckpoint(
             filepath=ckpt_prefix,
@@ -135,12 +142,12 @@ if __name__ == '__main__':
             save_freq='epoch'
         ))
 
+    # Launch distributed training
     model.fit(
-        tf.data.Dataset.from_tensor_slices((x_train, tf.one_hot(y_train,10)))
-            .shuffle(60000).batch(batch_size).repeat(),
+        train_dataset,
         epochs=ROUNDS,
-        steps_per_epoch=steps_per_worker,
-        validation_data=tf.data.Dataset.from_tensor_slices((x_test, tf.one_hot(y_test,10))).batch(batch_size),
+        steps_per_epoch=steps_per_epoch,
+        validation_data=test_dataset,
         verbose=1 if is_chief else 0,
         callbacks=callbacks
     )

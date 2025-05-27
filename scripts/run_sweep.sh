@@ -4,14 +4,17 @@ set -euo pipefail
 WORKERS=(4)
 
 ARCHS=(
-  "784,16,16,10"
+  "784,32,32,10",
+  "784,64,64,10",
+  "784,128,128,10",
+  "784,256,256,10"
 )
 
 DATA_SIZES=(60000)
 
-FAULT_PS=(0.1)
+FAULT_PS=(0.0)
 
-TRIALS=20
+TRIALS=1
 
 LOG_DIR=logs_full
 mkdir -p "${LOG_DIR}"
