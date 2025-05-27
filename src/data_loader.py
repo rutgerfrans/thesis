@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import config
 import numpy as np
-import pickle, gzip, base64
+import pickle, base64
 
 def load_images(filename):
     images = []
@@ -38,11 +38,7 @@ def partition_training_data(images, labels, n):
     return [data[i * chunk_size:(i + 1) * chunk_size] for i in range(n)]
 
 def serialize_data(data):
-    raw = pickle.dumps(data)
-    comp = gzip.compress(raw)
-    return base64.b64encode(comp).decode('ascii')
+    return pickle.dumps(data)
 
 def deserialize_data(data):
-    comp = base64.b64decode(data.encode('ascii'))
-    raw  = gzip.decompress(comp)
-    return pickle.loads(raw)
+    return pickle.loads(data)
