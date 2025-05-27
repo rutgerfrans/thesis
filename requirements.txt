@@ -1,0 +1,6 @@
+# mpi4py==4.0.3
+syndicate-py==0.19.3
+preserves==0.996.3
+numpy
+torch==2.7.0
+tensorflow==2.19.0
