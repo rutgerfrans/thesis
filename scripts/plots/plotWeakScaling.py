@@ -1,8 +1,20 @@
 import matplotlib.pyplot as plt
-datasetsizes = [10000,30000,60000]
-tf_times = [33.503849,79.777392,150.975737]
-pt_times = [18.565649,24.168294,27.429125]
-sam_times = [23.117687,72.903935,163.05613]
+datasetsizes = [0, 10000,30000,60000]
+tf_times = [0, 
+53.977998,
+53.135708,
+62.0831
+]
+pt_times = [0,
+38.595782,
+52.554307,
+52.458581
+]
+sam_times = [0,
+21.221085,
+53.626296,
+102.868706
+]
 
 plt.figure()
 plt.plot(datasetsizes, tf_times, marker='o', label='TensorFlow')

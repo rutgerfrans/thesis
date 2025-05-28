@@ -1,8 +1,23 @@
 import matplotlib.pyplot as plt
-hiddenlayers = [2,3,4,5]
-tf_times = [150.975737,151.200951,156.517822,163.499618]
-pt_times = [27.429125,29.657657,39.121092,48.435512]
-sam_times = [126.902194,132.180497,145.791522,160.472369]
+hiddenlayers = [0,2,3,4,5]
+tf_times = [0,
+62.0831,
+75.552726,
+89.199059,
+102.358496
+]
+sam_times = [0,
+102.868706,
+115.479359,
+128.149642,
+141.236291
+]
+pt_times = [0,
+52.458581,
+63.567997,
+74.696051,
+85.745645
+]
 
 plt.figure()
 plt.plot(hiddenlayers, tf_times, marker='o', label='TensorFlow')

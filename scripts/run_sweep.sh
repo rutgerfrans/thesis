@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-WORKERS=(2 4 8 12)
+WORKERS=(4)
 
 ARCHS=(
   "784,16,16,10"
