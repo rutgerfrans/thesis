@@ -1,19 +1,9 @@
 #!/usr/bin/env python3
-import os
-import glob
-import argparse
-import time
-import csv
-import random
+import os, glob, argparse, time, csv, random
 from datetime import datetime
-
 import numpy as np
 import torch
-from torch.distributed import (
-    init_process_group, destroy_process_group,
-    all_reduce, ReduceOp, get_rank, get_world_size
-)
-
+from torch.distributed import (init_process_group, destroy_process_group,all_reduce, ReduceOp, get_rank, get_world_size)
 from src.data_loader import load_dataset
 import config
 import src.mnist as mnist
@@ -24,7 +14,7 @@ fault_p = config.FAULT_P
 def ddp_setup():
     init_process_group(backend="gloo", init_method="env://")
 
-class FederatedTrainer:
+class Trainer:
     def __init__(self, model, data, local_epochs, batch_size, save_every, snapshot_path):
         self.device = torch.device("cpu")
         self.rank = get_rank()
@@ -130,7 +120,7 @@ def main():
         print(f"Workers={world_size}, Samples/worker={len(data)}, "
               f"Batch={args.batch_size}, Local epochs={args.local_epochs}")
 
-    trainer = FederatedTrainer(
+    trainer = Trainer(
         model=model,
         data=data,
         local_epochs=args.local_epochs,

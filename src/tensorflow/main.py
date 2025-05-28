@@ -1,25 +1,15 @@
 #!/usr/bin/env python3
-import os
-import glob
-import json
-import random
-import time
-import csv
+import os, glob, json, random, time, csv
 from datetime import datetime
-
-# Threading / logging configs
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 os.environ["TF_CPP_VLOG_LEVEL"] = "99"
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
-# Limit BLAS / TF threads
 os.environ["OMP_NUM_THREADS"]         = "1"
 os.environ["MKL_NUM_THREADS"]         = "1"
 os.environ["TF_NUM_INTRAOP_THREADS"]  = "1"
 os.environ["TF_NUM_INTEROP_THREADS"]  = "1"
-
 import numpy as np
 import tensorflow as tf
-
 import config
 import src.mnist as mnist
 from src.data_loader import load_dataset
@@ -33,15 +23,12 @@ def clear_snapshots(ckpt_dir):
             print(f"Deleted checkpoint: {fname}")
         except OSError as e:
             print(f"Error deleting {fname}: {e}")
-    # also remove the 'checkpoint' file
     try:
         os.remove(os.path.join(ckpt_dir, 'checkpoint'))
     except OSError:
         pass
 
-
 def main():
-    # Ensure TF_CONFIG is set for multi-worker
     if 'TF_CONFIG' not in os.environ:
         default = {
             'cluster': {'worker': ['localhost:12345']},
@@ -53,45 +40,29 @@ def main():
     task_type, task_id = resolver.task_type, resolver.task_id
     is_chief = (task_type == 'worker' and task_id == 0)
 
-    # Use tf.distribute API directly
     strategy = tf.distribute.MultiWorkerMirroredStrategy()
     num_workers = strategy.num_replicas_in_sync
 
-    # Load your data partitions
     partitions, _ = load_dataset()
     local_part = partitions[task_id]
 
-    # Build training_data list of (x, y) column vectors
     training_data = []
     for img, one_hot_label in local_part:
         x = img.astype(np.float32).reshape(-1, 1)
         y = one_hot_label.astype(np.float32)
         training_data.append((x, y))
 
-    # Checkpoint directory
     ckpt_dir = os.path.join(os.getcwd(), 'src', 'tensorflow', 'checkpoints')
     os.makedirs(ckpt_dir, exist_ok=True)
 
     with strategy.scope():
-        # Instantiate NumPy network
         network = mnist.Network(config.NETWORK_ARCHITECTURE)
-
-        # Wrap parameters in TF variables
-        tf_weights = [
-            tf.Variable(w.astype(np.float32), trainable=False)
-            for w in network.weights
-        ]
-        tf_biases = [
-            tf.Variable(b.astype(np.float32), trainable=False)
-            for b in network.biases
-        ]
-
-        # Checkpoint & manager
+        tf_weights = [tf.Variable(w.astype(np.float32), trainable=False)for w in network.weights]
+        tf_biases = [tf.Variable(b.astype(np.float32), trainable=False)for b in network.biases]
         ckpt = tf.train.Checkpoint(**{f"w{i}": v for i, v in enumerate(tf_weights)},
                                    **{f"b{j}": v for j, v in enumerate(tf_biases)})
         manager = tf.train.CheckpointManager(ckpt, ckpt_dir, max_to_keep=None)
 
-        # Restore latest if available
         latest = manager.latest_checkpoint
         start_epoch = 0
         if latest:
@@ -104,7 +75,6 @@ def main():
             if is_chief:
                 print(f"Restored checkpoint {fn}, starting at epoch {start_epoch}")
 
-    # Setup timing CSV
     compute_time_total = 0.0
     timing_csv = os.path.join(os.getcwd(), "src", "tensorflow", "timings", "epoch_timings.csv")
     if not os.path.exists(timing_csv):
@@ -113,40 +83,29 @@ def main():
             writer = csv.writer(f)
             writer.writerow(["system_overhead", "avg_compute_time_per_worker"])
 
-    # Main training loop
     run_start = datetime.now()
     if is_chief:
         print(f"Starting training at {run_start.isoformat()}, workers={num_workers}")
 
     for epoch in range(start_epoch, config.N_EPOCHS):
-        # Fault injection
         if fault_p > 0.0 and random.random() < fault_p:
             print(f"[worker {task_id}] Injecting fault at epoch {epoch}")
             os._exit(1)
 
         t0 = time.perf_counter()
 
-        # Sync TF vars to NumPy network
         for i, v in enumerate(tf_weights):
             network.weights[i] = v.numpy()
         for j, v in enumerate(tf_biases):
             network.biases[j] = v.numpy()
 
-        # Single epoch of SGD
-        network.SGD(
-            training_data,
-            epochs=config.SGD_EPOCHS,
-            mini_batch_size=config.MINI_BATCH_SIZE,
-            eta=config.ETA
-        )
+        network.SGD(training_data,epochs=config.SGD_EPOCHS,mini_batch_size=config.MINI_BATCH_SIZE,eta=config.ETA)
 
-        # Write NumPy updates back to TF vars
         for i, v in enumerate(tf_weights):
             v.assign(network.weights[i])
         for j, v in enumerate(tf_biases):
             v.assign(network.biases[j])
 
-        # All-reduce average
         for v in tf_weights + tf_biases:
             reduced = tf.raw_ops.CollectiveReduce(
                 input=v.read_value(),
@@ -163,12 +122,10 @@ def main():
         epoch_compute = t1 - t0
         compute_time_total += epoch_compute
 
-        # Chief logs + checkpoint
         if is_chief:
             print(f"[Epoch {epoch+1}] compute_time={epoch_compute:.4f}s")
             manager.save(checkpoint_number=epoch+1)
 
-    # Finalize
     if is_chief:
         clear_snapshots(ckpt_dir)
         run_end = datetime.now()
@@ -180,7 +137,6 @@ def main():
             f"wall_time={total_wall:.4f}s; "
             f"system_overhead={system_overhead:.4f}s"
         )
-        # Append timings to CSV
         with open(timing_csv, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([f"{system_overhead:.6f}", f"{(compute_time_total/num_workers):.6f}"])

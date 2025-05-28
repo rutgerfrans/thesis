@@ -67,24 +67,23 @@ def main(data):
             unclaimed_jobs.add(spec)
 
     def summarize_state():
-        #turn.log.info('%d free workers, %d unclaimed jobs, %d jobs in progress',
-        #              len(free_workers),
-        #              len(unclaimed_jobs),
-        #              len(in_progress))
-        pass
+        turn.log.info('%d free workers, %d unclaimed jobs, %d jobs in progress',
+                      len(free_workers),
+                      len(unclaimed_jobs),
+                      len(in_progress))
 
     @dataspace.during(coordination_ds, P.rec('job', P.CAPTURE))
     def new_job(spec):
         #turn.log.info('New job %s', truncated(repr(spec)))
         job_available(spec)
-        summarize_state()
+        #summarize_state()
         @turn.on_stop
         def job_retracted():
             #turn.log.info('Job retracted %s', truncated(repr(spec)))
             unclaimed_jobs.discard(spec)
             for e in find_and_retract_pairings(lambda e: InProgress._spec(e) == spec):
                 worker_available(InProgress._entity(e).embeddedValue)
-            summarize_state()
+            #summarize_state()
 
     @dataspace.during(coordination_ds, P.rec('worker', P.CAPTURE))
     def new_worker(entity):
@@ -92,11 +91,11 @@ def main(data):
         entity = entity.embeddedValue
         #turn.log.info('New worker %r', entity)
         worker_available(entity)
-        summarize_state()
+        #summarize_state()
         @turn.on_stop
         def worker_retracted():
             #turn.log.info('Worker retracted %r', entity)
             free_workers.discard(entity)
             for e in find_and_retract_pairings(lambda e: InProgress._entity(e).embeddedValue == entity):
                 job_available(InProgress._spec(e))
-            summarize_state()
+            #summarize_state()

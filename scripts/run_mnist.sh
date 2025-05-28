@@ -25,13 +25,11 @@ import config
 print(config.N_PARTITIONS)
 EOF
 )
-    # build the snippet in a temp file
     TMP=$(mktemp)
     for (( i=1; i<=N; i++ )); do
       echo "<require-service <daemon <worker $i>>>"
     done > "$TMP"
 
-    # now insert it into the placeholder in your skeleton
     sed "/# WORKERS_PLACEHOLDER/{
         r $TMP
         d
@@ -42,7 +40,6 @@ EOF
     syndicate-server --control -c config/rpc-syndicate-config.pr
 
 elif [ "$COMM" == "pytorch" ]; then 
-    # Automatic restart loop on failure
     RETRIES=0
     while true; do
         echo "[Attempt $((RETRIES+1))] Starting PyTorch federated training..."
