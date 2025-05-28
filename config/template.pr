@@ -18,7 +18,7 @@
     protocol: application/syndicate
   }>
   ? <service-object <daemon <worker $n>> ?w> [
-    <worker $w>
+    $w += { "worker-dataspace": $config }
   ]
 ]
 
