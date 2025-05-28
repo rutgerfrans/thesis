@@ -2,7 +2,6 @@ from syndicate import relay, Record, turn, patterns as P, dataspace, Embedded
 from syndicate.during import During
 import config as cfg
 from src.data_loader import serialize_data, deserialize_data
-import random, os
 
 # Record definitions
 TrainingJob = Record.makeConstructor('TJob', 'gm pid k')
