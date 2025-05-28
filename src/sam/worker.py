@@ -1,36 +1,36 @@
-from syndicate import relay, Record, turn
+from syndicate import relay, Record, turn, patterns as P, dataspace, Embedded
 from syndicate.during import During
 import config as cfg
 from src.data_loader import serialize_data, deserialize_data
-import time, random, os
+import random, os
 
-TrainingJob = Record.makeConstructor('TJob', 'gm tp k')
+# Record definitions
+TrainingJob = Record.makeConstructor('TJob', 'gm pid k')
+Partitions  = Record.makeConstructor('Partitions', 'data')
+Worker = Record.makeConstructor('worker', 'entity')
+
+# Revised protocol for data distribution separate from workload specs:
+#  - Worker's service-object expects dataspace as initial (and sole) assertion
+#  - Then, monitors partition data, and waits for work.
 
 @relay.service(name='worker')
 @During().add_handler
 def main(data):
-    global GLOBAL_EPOCH
+    ds = data['worker-dataspace'].embeddedValue
 
-    if TrainingJob.isClassOf(data):
-        if(cfg.FAULT_P > 0.0 and random.uniform(0,1) < cfg.FAULT_P):
-            turn.log.info(f"Injecting fault")
-            os._exit(1)
+    @dataspace.during(ds, P.rec('Partitions', P.CAPTURE))
+    def load_part(data):
+        turn.log.info('Got partition data')
+        local_partitions = [deserialize_data(p) for p in data]
 
-        sr_time = time.perf_counter()
-        gm = deserialize_data(TrainingJob._gm(data))
-        er_time = time.perf_counter()
-        read_time = er_time - sr_time
+        @During().add_handler
+        def process_job(record):
+            pid = TrainingJob._pid(record)
+            turn.log.info('Got job, partition %s', pid)
+            gm = deserialize_data(TrainingJob._gm(record))
+            pt = local_partitions[pid]
+            gm.SGD(pt, cfg.SGD_EPOCHS, cfg.MINI_BATCH_SIZE, cfg.ETA)
+            handle = TrainingJob._k(record).embeddedValue
+            turn.publish(handle, [serialize_data(gm)])
 
-        pt = TrainingJob._tp(data)
-
-        sr_time = time.perf_counter()
-        pt = deserialize_data(pt)
-        er_time = time.perf_counter()
-        read_time += (er_time - sr_time)
-
-        scc_time = time.perf_counter()
-        gm.SGD(pt,cfg.SGD_EPOCHS,cfg.MINI_BATCH_SIZE,cfg.ETA)
-        ecc_time = time.perf_counter()
-        comp_time = ecc_time - scc_time
-
-        turn.publish(TrainingJob._k(data).embeddedValue,[serialize_data(gm), [read_time,comp_time]])
+        turn.publish(ds, Worker(Embedded(turn.ref(process_job))))
