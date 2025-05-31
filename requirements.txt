@@ -1,0 +1,5 @@
+tensorflow-cpu==2.12.0
+numpy==1.23.5
+syndicate-py==0.19.3
+preserves==0.996.3
+torch==2.7.0

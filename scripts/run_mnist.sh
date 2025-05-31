@@ -41,7 +41,7 @@ EOF
 elif [ "$COMM" == "pytorch" ]; then 
     RETRIES=0
     while true; do
-        echo "[Attempt $((RETRIES+1))] Starting PyTorch federated training..."
+        echo "[Attempt $((RETRIES+1))] Starting PyTorch training..."
         torchrun --nnodes 1 --nproc_per_node "$N_PARTITIONS" --max_restart 0 -m src.pytorch.main
         EXIT_CODE=$?
         if [ $EXIT_CODE -eq 0 ]; then
