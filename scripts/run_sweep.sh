@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-WORKERS=(8)
+WORKERS=(4)
 
 ARCHS=(
   "784,16,16,10"
@@ -32,7 +32,7 @@ for W in "${WORKERS[@]}"; do
 
           TS=$(date +%Y%m%d_%H%M%S)
           ARCH_TAG=${ARCH//,/-}
-          FP_TAG=$(printf "%03d" "${FP#0.}")   # 0.01→001, 0.05→005, 0.10→010
+          FP_TAG=$(printf "%03d" "${FP#0.}")
           LOG="${LOG_DIR}/w${W}_arch${ARCH_TAG}_ds${DS}_fp${FP_TAG}_trial${TR}_${TS}.log"
 
           echo

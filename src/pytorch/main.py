@@ -11,16 +11,17 @@ import src.mnist as mnist
 total_computation_time = 0.0
 fault_p = config.FAULT_P
 
-def ddp_setup():
+def distributed_setup():
     init_process_group(backend="gloo", init_method="env://")
 
 class Trainer:
-    def __init__(self, model, data, local_epochs, batch_size, save_every, snapshot_path):
+    def __init__(self, model, data, test_data,local_epochs, batch_size, save_every, snapshot_path):
         self.device = torch.device("cpu")
         self.rank = get_rank()
         self.world_size = get_world_size()
         self.model = model
         self.data = data
+        self.test_data = test_data
         self.local_epochs = local_epochs
         self.batch_size = batch_size
         self.save_every = save_every
@@ -65,6 +66,10 @@ class Trainer:
             comp_time = t1 - t0
             total_computation_time += comp_time
 
+            if self.rank == 0:
+                correct = self.model.evaluate(self.test_data)
+                accuracy = correct / len(self.test_data) if len(self.test_data) > 0 else 0.0
+
             if (r + 1) % self.save_every == 0:
                 path = f"{self.snapshot_path}_round{r+1}.pt"
                 torch.save({
@@ -73,7 +78,7 @@ class Trainer:
                     "round":    r + 1
                 }, path)
                 if self.rank == 0:
-                    print(f"[Round {r+1}] Avg Loss: {avg_loss:.6f} | Comp Time: {comp_time:.4f}s | Saved checkpoint {path}")
+                    print(f"[Round {r+1}] Avg Loss: {avg_loss:.6f} | Accuracy: {accuracy * 100:.2f}% | Comp Time: {comp_time:.4f}s | Saved checkpoint {path}")
 
 def main():
     TIMING_CSV = os.path.join(os.getcwd(), "src/pytorch/timings/epoch_timings.csv")
@@ -82,7 +87,7 @@ def main():
             writer = csv.writer(f)
             writer.writerow(["system_overhead", "avg_comp_time_per_worker"])
 
-    parser = argparse.ArgumentParser(description="NumPy-DDP Federated MNIST")
+    parser = argparse.ArgumentParser(description="Distributed MNIST")
     parser.add_argument("--rounds", type=int, default=config.N_EPOCHS)
     parser.add_argument("--local_epochs", type=int, default=config.SGD_EPOCHS)
     parser.add_argument("--batch_size", type=int, default=config.MINI_BATCH_SIZE)
@@ -90,11 +95,11 @@ def main():
     parser.add_argument("--snapshot_path", type=str, default="src/pytorch/snapshot")
     args = parser.parse_args()
 
-    ddp_setup()
+    distributed_setup()
     rank = get_rank()
     world_size = get_world_size()
 
-    partitions, _ = load_dataset()
+    partitions, test_data = load_dataset()
     data = partitions[rank]
     if config.TRAIN_SAMPLE_SIZE > 0:
         data = data[: config.TRAIN_SAMPLE_SIZE]
@@ -123,6 +128,7 @@ def main():
     trainer = Trainer(
         model=model,
         data=data,
+        test_data=test_data,
         local_epochs=args.local_epochs,
         batch_size=args.batch_size,
         save_every=args.save_every,

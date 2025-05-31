@@ -25,8 +25,8 @@ plt.plot(hiddenlayers, pt_times, marker='o', label='PyTorch')
 plt.plot(hiddenlayers, sam_times, marker='o', label='SAM')
 
 plt.xlabel('# Hidden-Layers')
-plt.ylabel('Throughput images/s')
-plt.title('Throughput (images/s) vs. # Hidden-Layers')
+plt.ylabel('Images/s')
+plt.title('Throughput vs. Model Depth')
 plt.legend()
 xaxis = [2,3,4,5]
 plt.xticks(xaxis)

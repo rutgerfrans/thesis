@@ -24,9 +24,9 @@ plt.plot(fault_p, tf_delta_times,marker='o',label='TensorFlow')
 plt.plot(fault_p, pt_delta_times, marker='o',label='PyTorch')
 plt.plot(fault_p, sam_delta_times,marker='o',label='SAM')
 
-plt.xlabel('Fault Probability')
-plt.ylabel('Throughput images/s')
-plt.title('Throughput (images/s) vs. Fault Probality')
+plt.xlabel('p')
+plt.ylabel('Images/s')
+plt.title('Throughput vs. Fault Probality')
 plt.legend()
 xaxis = [0, 0.01, 0.05, 0.1]
 plt.xticks(xaxis)

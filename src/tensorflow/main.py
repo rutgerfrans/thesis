@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
-import os, glob, json, random, time, csv
+import os
+import glob
+import json
+import random
+import time
+import csv
 from datetime import datetime
+
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 os.environ["TF_CPP_VLOG_LEVEL"] = "99"
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
-os.environ["OMP_NUM_THREADS"]         = "1"
-os.environ["MKL_NUM_THREADS"]         = "1"
-os.environ["TF_NUM_INTRAOP_THREADS"]  = "1"
-os.environ["TF_NUM_INTEROP_THREADS"]  = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["TF_NUM_INTRAOP_THREADS"] = "1"
+os.environ["TF_NUM_INTEROP_THREADS"] = "1"
+
 import numpy as np
 import tensorflow as tf
+
 import config
 import src.mnist as mnist
 from src.data_loader import load_dataset
@@ -43,13 +51,14 @@ def main():
     strategy = tf.distribute.MultiWorkerMirroredStrategy()
     num_workers = strategy.num_replicas_in_sync
 
-    partitions, _ = load_dataset()
+    partitions, test_data = load_dataset()
     local_part = partitions[task_id]
 
     training_data = []
-    for img, one_hot_label in local_part:
+    for img, label in local_part:
         x = img.astype(np.float32).reshape(-1, 1)
-        y = one_hot_label.astype(np.float32)
+        y = label.astype(np.float32).reshape(-1, 1)
+
         training_data.append((x, y))
 
     ckpt_dir = os.path.join(os.getcwd(), 'src', 'tensorflow', 'checkpoints')
@@ -57,10 +66,13 @@ def main():
 
     with strategy.scope():
         network = mnist.Network(config.NETWORK_ARCHITECTURE)
-        tf_weights = [tf.Variable(w.astype(np.float32), trainable=False)for w in network.weights]
-        tf_biases = [tf.Variable(b.astype(np.float32), trainable=False)for b in network.biases]
-        ckpt = tf.train.Checkpoint(**{f"w{i}": v for i, v in enumerate(tf_weights)},
-                                   **{f"b{j}": v for j, v in enumerate(tf_biases)})
+        tf_weights = [tf.Variable(w.astype(np.float32), trainable=False) for w in network.weights]
+        tf_biases  = [tf.Variable(b.astype(np.float32), trainable=False) for b in network.biases]
+
+        ckpt = tf.train.Checkpoint(
+            **{f"w{i}": v for i, v in enumerate(tf_weights)},
+            **{f"b{j}": v for j, v in enumerate(tf_biases)}
+        )
         manager = tf.train.CheckpointManager(ckpt, ckpt_dir, max_to_keep=None)
 
         latest = manager.latest_checkpoint
@@ -99,7 +111,12 @@ def main():
         for j, v in enumerate(tf_biases):
             network.biases[j] = v.numpy()
 
-        network.SGD(training_data,epochs=config.SGD_EPOCHS,mini_batch_size=config.MINI_BATCH_SIZE,eta=config.ETA)
+        network.SGD(
+            training_data=training_data,
+            epochs=config.SGD_EPOCHS,
+            mini_batch_size=config.MINI_BATCH_SIZE,
+            eta=config.ETA
+        )
 
         for i, v in enumerate(tf_weights):
             v.assign(network.weights[i])
@@ -140,6 +157,25 @@ def main():
         with open(timing_csv, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([f"{system_overhead:.6f}", f"{(compute_time_total/num_workers):.6f}"])
+
+        correct = 0
+        total   = 0
+
+        for img, label in test_data:
+            x_test = img.astype(np.float32).reshape(-1, 1)
+            output = network.feedforward(x_test)
+            predicted_label = np.argmax(output)
+            true_label = int(label)
+
+            if predicted_label == true_label:
+                correct += 1
+            total += 1
+
+        if total > 0:
+            accuracy = correct / total
+            print(f"Test accuracy: {accuracy * 100:.2f}% ({correct}/{total})")
+        else:
+            print("Warning: test_data is empty; cannot compute accuracy.")
 
     os._exit(0)
 

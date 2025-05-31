@@ -19,7 +19,6 @@ if [ "$COMM" == "mpi" ]; then
     mpiexec -n $(( N_PARTITIONS + 1 )) python3 -m src.mpi.driver
 
 elif [ "$COMM" == "sam" ]; then
-    # how many workers?
     N=$(python3 - <<EOF
 import config
 print(config.N_PARTITIONS)

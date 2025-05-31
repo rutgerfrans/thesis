@@ -21,9 +21,9 @@ plt.plot(datasetsizes, tf_times, marker='o', label='TensorFlow')
 plt.plot(datasetsizes, pt_times, marker='o', label='PyTorch')
 plt.plot(datasetsizes, sam_times, marker='o', label='SAM')
 
-plt.xlabel('Dataset Size)')
-plt.ylabel('Throughput images/s')
-plt.title('Throughput (images/s) vs. Dataset Size')
+plt.xlabel('Images')
+plt.ylabel('Images/s')
+plt.title('Throughput vs. Dataset Size')
 plt.legend()
 xaxis = [10000,30000,60000]
 plt.xticks(xaxis)

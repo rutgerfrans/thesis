@@ -28,8 +28,8 @@ plt.plot(workers, pt_times, marker='o', label='PyTorch')
 plt.plot(workers, sam_times, marker='o', label='SAM')
 
 plt.xlabel('# Workers')
-plt.ylabel('Throughput images/s')
-plt.title('Throughput (images/s) vs. # Workers')
+plt.ylabel('Images/s')
+plt.title('Throughput vs. Workers')
 plt.legend()
 xaxis = [0,1,2,4,8,12]
 plt.xticks(xaxis)
