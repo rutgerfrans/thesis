@@ -67,7 +67,7 @@ run_trial() {
 }
 
 # Define the experiments and their parameter sets
-EXP_TYPES=(fault_prob)
+EXP_TYPES=(workers dataset horiz_model vert_model fault_prob)
 declare -A WORKERS ARCHS DATA_SIZES FAULT_PS TRIALS
 
 # Scaling workers

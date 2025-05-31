@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 fault_p = [0, 0.01, 0.05, 0.1]
 tf_delta_times = [
 38657.8634121041,
-34324.6582829561,
-30346.4179791875,
-21909.5347686709
+35510.5429437063,
+24781.7921255004,
+18571.7156719128
 ]
 sam_delta_times = [
 48340.822132362,
@@ -14,9 +14,9 @@ sam_delta_times = [
 ]
 pt_delta_times = [
 45750.3797138546,
-42479.7121319828,
-35637.7744716274,
-28050.6890074132
+44821.8637150914,
+31029.4963650146,
+27407.8333182808
 ]
 
 plt.figure()
@@ -25,9 +25,12 @@ plt.plot(fault_p, pt_delta_times, marker='o',label='PyTorch')
 plt.plot(fault_p, sam_delta_times,marker='o',label='SAM')
 
 plt.xlabel('Fault Probability')
-plt.ylabel('Throughput img/s')
-plt.title('Delta Fault Tolerance: Fault Probability per Worker vs Wall-clock Time (s)')
+plt.ylabel('Throughput images/s')
+plt.title('Throughput (images/s) vs. Fault Probality')
 plt.legend()
 xaxis = [0, 0.01, 0.05, 0.1]
 plt.xticks(xaxis)
-plt.show()
+plt.xlim(left=0)
+plt.ylim(bottom=0)
+plt.savefig('plots/images/faultpresult.png', dpi=300,bbox_inches='tight')
+#plt.show()

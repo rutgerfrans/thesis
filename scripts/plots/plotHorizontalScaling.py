@@ -1,19 +1,18 @@
 import matplotlib.pyplot as plt
 neurons = [16,32,64,128,256]
 tf_times = [
-38657.8634121041,
-28416.6165360057,
-21404.4604505414,
-6906.3624104006,
-1490.57710257561
+37807.5585816305,
+30578.1187034159,
+21977.9324159348,
+8297.17875144932,
+1541.29296081512
 ]
 pt_times = [
-45750.3797138546,
-36434.0860853352,
-26367.3880234709,
-8848.19642677532,
-1559.39370499856
-
+46615.7083166561,
+36364.396710113,
+26209.7308780465,
+8535.71759825862,
+1564.84298867179
 ]
 sam_times = [
 48340.822132362,
@@ -28,9 +27,11 @@ plt.plot(neurons, tf_times, marker='o', label='TensorFlow')
 plt.plot(neurons, pt_times, marker='o', label='PyTorch')
 plt.plot(neurons, sam_times, marker='o', label='SAM')
 
-plt.xlabel('Number of Neurons in a Hidden-Layer')
-plt.ylabel('Throughput img/s')
-plt.title('Horizontal Scaling: Scaling Model Width vs Wall-clock Time (s)')
+plt.xlabel('# Neurons in Hidden-Layer')
+plt.ylabel('Throughput images/s')
+plt.title('Throughput (images/s) vs. # Neurons in Hidden-Layer')
 plt.legend()
 plt.xticks(neurons)
-plt.show()
+plt.ylim(bottom=0)
+plt.savefig('plots/images/horizontalscalingresult.png', dpi=300,bbox_inches='tight')
+#plt.show()
