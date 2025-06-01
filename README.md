@@ -40,3 +40,10 @@ TRIALS=5
 cd scripts
 ./run_sweep.sh
 ```
+
+## Generate Plots
+Note that these values are hardcoded, data can be foun under logs_full/expresults.csv
+```
+cd scripts
+./run_plots.sh
+```

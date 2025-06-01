@@ -3,3 +3,4 @@ numpy==1.23.5
 syndicate-py==0.19.3
 preserves==0.996.3
 torch==2.7.0
+matplotlib==3.10.3
