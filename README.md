@@ -1,4 +1,4 @@
-# Thesis
+# Thesis 2025 Rutger de Groen
 This repo contains an implementation of a data distributed training pipeline with the Syndicated Actor Model, PyTorch, and TensorFlow. Running below commands will reproduce the results mentioned in the thesis report. 
 
 ## Installation
@@ -47,3 +47,6 @@ Note that these values are hardcoded, data can be foun under logs_full/expresult
 cd scripts
 ./run_plots.sh
 ```
+
+## Raw Experiment Data
+the raw and process experiment data can be found under /scripts/logs_full/experiments_results.ods

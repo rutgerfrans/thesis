@@ -9,7 +9,7 @@ ARCHS=(
 
 DATA_SIZES=(60000)
 
-FAULT_PS=(0.1 0.05)
+FAULT_PS=(0.0)
 
 TRIALS=10
 
@@ -39,10 +39,10 @@ for W in "${WORKERS[@]}"; do
           echo "→ Trial ${TR}: Workers=${W}, Arch=${ARCH}, Dataset=${DS}, Fault=${FP}"
           echo "  Logging to: ${LOG}"
 
-          START_TIME=$(date +%s)
+          START_TIME=$(date +%s.%N)
           bash run_mnist.sh > "${LOG}" 2>&1
-          END_TIME=$(date +%s)
-          DURATION=$((END_TIME - START_TIME))
+          END_TIME=$(date +%s.%N)
+          DURATION=$(echo "${END_TIME} - ${START_TIME}" | bc)
 
           echo "${TR},${W},\"${ARCH}\",${DS},${FP},${DURATION}" >> "${SUMMARY_CSV}"
 
