@@ -50,8 +50,7 @@ elif [ "$COMM" == "pytorch" ]; then
         fi
         RETRIES=$((RETRIES+1))
         echo "Training failed with exit code $EXIT_CODE."
-        echo "Restarting in 10 seconds..."
-        sleep 10
+        echo "Restarting..."
     done
 
 elif [ "$COMM" == "tensorflow" ]; then
@@ -73,8 +72,7 @@ elif [ "$COMM" == "tensorflow" ]; then
             break
           fi
           RETRIES=$((RETRIES+1))
-          echo ">> Worker $i crashed with exit code $EXIT_CODE; restarting in 5s..."
-          sleep 5
+          echo ">> Worker $i crashed with exit code $EXIT_CODE; restarting..."
         done
       ) &
     done

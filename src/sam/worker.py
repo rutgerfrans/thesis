@@ -4,14 +4,9 @@ import config as cfg
 from src.data_loader import serialize_data, deserialize_data
 import random, os
 
-# Record definitions
 TrainingJob = Record.makeConstructor('TJob', 'gm pid k')
 Partitions  = Record.makeConstructor('Partitions', 'data')
 Worker = Record.makeConstructor('worker', 'entity')
-
-# Revised protocol for data distribution separate from workload specs:
-#  - Worker's service-object expects dataspace as initial (and sole) assertion
-#  - Then, monitors partition data, and waits for work.
 
 @relay.service(name='worker')
 @During().add_handler

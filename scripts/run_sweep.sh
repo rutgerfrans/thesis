@@ -9,9 +9,9 @@ ARCHS=(
 
 DATA_SIZES=(60000)
 
-FAULT_PS=(0.0)
+FAULT_PS=(0.1 0.05)
 
-TRIALS=1
+TRIALS=10
 
 LOG_DIR=logs_full
 mkdir -p "${LOG_DIR}"

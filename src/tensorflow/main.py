@@ -7,8 +7,8 @@ import time
 import csv
 from datetime import datetime
 
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-os.environ["TF_CPP_VLOG_LEVEL"] = "99"
+#os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+#os.environ["TF_CPP_VLOG_LEVEL"] = "99"
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"

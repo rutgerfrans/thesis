@@ -23,7 +23,6 @@ mkdir -p "${LOG_DIR}"
 SUMMARY_CSV="${SCRIPT_DIR}/logs_full/summary.csv"
 echo "trial,workers,architecture,dataset_size,fault_prob,duration_sec" > "${SUMMARY_CSV}"
 
-# Function: run a single trial, record high-precision timing, log output and summary
 run_trial() {
   local W=$1 ARCH=$2 DS=$3 FP=$4 TR=$5
 
@@ -102,7 +101,7 @@ TRIALS[vert_model]=1
 WORKERS[fault_prob]="4"
 ARCHS[fault_prob]="784,16,16,10"
 DATA_SIZES[fault_prob]="60000"
-FAULT_PS[fault_prob]="0.15 0.20 0.25 0.50 0.75"
+FAULT_PS[fault_prob]="0.15 0.1 0.01"
 TRIALS[fault_prob]=20
 
 # Sweep over experiments
