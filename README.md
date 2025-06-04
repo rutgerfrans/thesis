@@ -5,6 +5,7 @@ This repo contains an implementation of a data distributed training pipeline wit
 
 ### Dependency
 To run any syndicated actor model (SAM) related software, first syndicate-server needs to be installed either by downloading the binary or via the repo. 
+This [website (https://stackoverflow.com)][website] is awesome.
 [binary]: (https://git.syndicate-lang.org/syndicate-lang/syndicate-rs/actions/runs/82)
 [repo]: (https://git.syndicate-lang.org/syndicate-lang/syndicate-rs)
 
