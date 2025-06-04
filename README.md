@@ -2,6 +2,12 @@
 This repo contains an implementation of a data distributed training pipeline with the Syndicated Actor Model, PyTorch, and TensorFlow. Running below commands will reproduce the results mentioned in the thesis report. 
 
 ## Installation
+
+### Dependency
+To run any syndicated actor model (SAM) related software, first syndicate-server needs to be installed either by downloading the binary or via the repo. 
+[binary]: (https://git.syndicate-lang.org/syndicate-lang/syndicate-rs/actions/runs/82)
+[repo]: (https://git.syndicate-lang.org/syndicate-lang/syndicate-rs)
+
 ```bash
 python3.8 -m venv .venv
 source .venv/bin/activate
