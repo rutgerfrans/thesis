@@ -3,7 +3,7 @@ This repo contains an implementation of a data distributed training pipeline wit
 
 ## Installation
 ```bash
-python3.8 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```

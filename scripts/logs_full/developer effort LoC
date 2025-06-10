@@ -1,0 +1,147 @@
+TensorFlow Automatic Failure Handling LoC: 54
+worker code:
+def clear_snapshots(ckpt_dir):
+    for fname in glob.glob(os.path.join(ckpt_dir, 'ckpt-*')):
+        try:
+            os.remove(fname)
+            print(f"Deleted checkpoint: {fname}")
+        except OSError as e:
+            print(f"Error deleting {fname}: {e}")
+    try:
+        os.remove(os.path.join(ckpt_dir, 'checkpoint'))
+    except OSError:
+        pass
+ckpt_dir = os.path.join(os.getcwd(), 'src', 'tensorflow', 'checkpoints')
+os.makedirs(ckpt_dir, exist_ok=True)
+        ckpt = tf.train.Checkpoint(
+            **{f"w{i}": v for i, v in enumerate(tf_weights)},
+            **{f"b{j}": v for j, v in enumerate(tf_biases)}
+        )
+        manager = tf.train.CheckpointManager(ckpt, ckpt_dir, max_to_keep=None)
+
+        latest = manager.latest_checkpoint
+        start_epoch = 0
+        if latest:
+            ckpt.restore(latest).expect_partial()
+            fn = os.path.basename(latest)
+            try:
+                start_epoch = int(fn.split('-')[-1])
+            except ValueError:
+                start_epoch = 0
+            if is_chief:
+                print(f"Restored checkpoint {fn}, starting at epoch {start_epoch}")       
+config/scripting:
+elif [ "$COMM" == "tensorflow" ]; then
+    HOST=localhost
+    BASE_PORT=12345
+    WORKERS=$(seq $BASE_PORT $((BASE_PORT+N_PARTITIONS-1)) \
+              | sed "s/.*/\"$HOST:&\"/" \
+              | paste -sd, -)
+    for i in $(seq 0 $((N_PARTITIONS-1))); do
+      (
+        RETRIES=0
+        while true; do
+          export TF_CONFIG="{\"cluster\":{\"worker\":[$WORKERS]},\"task\":{\"type\":\"worker\",\"index\":$i}}"
+          echo "[TF worker $i | attempt $RETRIES] TF_CONFIG=$TF_CONFIG"
+          python3 -m src.tensorflow.main
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo ">> Worker $i exited normally."
+            break
+          fi
+          RETRIES=$((RETRIES+1))
+          echo ">> Worker $i crashed with exit code $EXIT_CODE; restarting..."
+        done
+      ) &
+    done
+    wait
+    
+PyTorch Automatic Failure Handling LoC: 33
+worker code:
+    ckpts = sorted(glob.glob(f"{args.snapshot_path}_round*.pt"))
+    if ckpts:
+        info = torch.load(ckpts[-1], map_location="cpu", weights_only=False)
+        model.weights = [t.cpu().numpy() for t in info["weights"]]
+        model.biases  = [t.cpu().numpy() for t in info["biases"]]
+        start_round = info.get("round", 0)
+        if start_round >= args.rounds and rank == 0:
+            print(f"All rounds completed (round {start_round}). Exiting.")
+            destroy_process_group()
+            return
+    else:
+        start_round = 0
+        for snap in ckpts:
+            try:
+                os.remove(snap)
+                print(f"Deleted snapshot: {snap}")
+            except OSError as e:
+                print(f"Error deleting {snap}: {e}")
+config/scripting:
+elif [ "$COMM" == "pytorch" ]; then 
+    # Automatic restart loop on failure
+    RETRIES=0
+    while true; do
+        echo "[Attempt $((RETRIES+1))] Starting PyTorch federated training..."
+        torchrun --nnodes 1 --nproc_per_node "$N_PARTITIONS" --max_restart 0 -m src.pytorch.main
+        EXIT_CODE=$?
+        if [ $EXIT_CODE -eq 0 ]; then
+            echo "Training completed successfully."
+            break
+        fi
+        RETRIES=$((RETRIES+1))
+        echo "Training failed with exit code $EXIT_CODE."
+        echo "Restarting..."
+    done
+
+SAM Automatic Failure Handling LoC: 50
+job queue code:
+@relay.service(name='job-coordinator')
+@During().add_handler
+def main(data):
+    coordination_ds  = data['dataspace'].embeddedValue
+    free_workers = set() # Set of worker entity refs
+    unclaimed_jobs = set() # Set of job specs
+    in_progress = [] # List of (spec, entity ref, handle) pairings
+    parent_facet = Facet.active
+    def make_pairing(spec, w):
+        with ActiveFacet(parent_facet):
+            handle = turn.publish(w, spec)
+        in_progress.append(InProgress(spec, Embedded(w), handle))
+    def retract_pairing(handle):
+        with ActiveFacet(parent_facet):
+            turn.retract(handle)
+    def find_and_retract_pairings(predicate):
+        nonlocal in_progress
+        (matches, nonmatches) = partition_list(in_progress, predicate)
+        for e in matches:
+            retract_pairing(InProgress._handle(e))
+        in_progress = nonmatches
+        return matches
+    def worker_available(entity):
+        if unclaimed_jobs:
+            make_pairing(unclaimed_jobs.pop(), entity)
+        else:
+            free_workers.add(entity)
+    def job_available(spec):
+        if free_workers:
+            make_pairing(spec, free_workers.pop())
+        else:
+            unclaimed_jobs.add(spec)
+    @dataspace.during(coordination_ds, P.rec('job', P.CAPTURE))
+    def new_job(spec):
+        job_available(spec)
+        @turn.on_stop
+        def job_retracted():
+            unclaimed_jobs.discard(spec)
+            for e in find_and_retract_pairings(lambda e: InProgress._spec(e) == spec):
+                worker_available(InProgress._entity(e).embeddedValue)
+    @dataspace.during(coordination_ds, P.rec('worker', P.CAPTURE))
+    def new_worker(entity):
+        if not isinstance(entity, Embedded): return
+        entity = entity.embeddedValue
+        worker_available(entity)
+        @turn.on_stop
+        def worker_retracted():
+            free_workers.discard(entity)
+            for e in find_and_retract_pairings(lambda e: InProgress._entity(e).embeddedValue == entity):
+                job_available(InProgress._spec(e))
